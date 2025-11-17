@@ -1,0 +1,265 @@
+"""Lightweight GitLab issue webhook relay.
+
+This Flask-based service listens for issue update events from repository B and
+replays the payload into GitLab's pipeline trigger API so that repository A's
+CI/CD pipeline can react to real-world issue activity.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
+
+import requests
+from flask import Flask, abort, jsonify, request
+
+def _load_env_file(path: str = ".env") -> None:
+    """Populate os.environ from a dotenv-style file if present."""
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        key, sep, value = line.partition("=")
+        if not sep:
+            continue
+        key = key.strip()
+        if not key:
+            continue
+        if key in os.environ:
+            continue  # never override an explicitly provided value
+        os.environ[key] = value.strip().strip('"').strip("'")
+
+
+_load_env_file()
+
+
+def _configure_logging() -> logging.Logger:
+    logs_dir = Path("logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    log_file = logs_dir / f"{datetime.utcnow().strftime('%Y-%m-%d')}.log"
+    debug_enabled = os.getenv("LOG_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+    level = logging.DEBUG if debug_enabled else logging.INFO
+
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(level)
+
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(level)
+
+    root_logger.addHandler(stream_handler)
+    root_logger.addHandler(file_handler)
+    root_logger.debug("Logging configured (level=%s, file=%s)", logging.getLevelName(level), log_file)
+    return logging.getLogger(__name__)
+
+
+app = Flask(__name__)
+logger = _configure_logging()
+
+
+def _sanitize_headers(headers: Any) -> Dict[str, str]:
+    sensitive = {"authorization", "x-gitlab-token", "private-token"}
+    sanitized: Dict[str, str] = {}
+    for key, value in headers.items():
+        sanitized[key] = "***" if key.lower() in sensitive else value
+    return sanitized
+
+
+class Settings:
+    """Centralized runtime configuration with basic validation."""
+
+    def __init__(self) -> None:
+        self.pipeline_trigger_token = self._require("PIPELINE_TRIGGER_TOKEN")
+        self.pipeline_project_id = self._require("PIPELINE_PROJECT_ID")
+        self.pipeline_ref = os.getenv("PIPELINE_REF", "main")
+        self.gitlab_api_base = os.getenv("GITLAB_API_BASE", "https://gitlab.com")
+        self.webhook_secret_token = os.getenv("WEBHOOK_SECRET_TOKEN")
+        self.default_target_branch = os.getenv("FALLBACK_TARGET_BRANCH", "main")
+        self.original_needs_max_chars = int(os.getenv("ORIGINAL_NEEDS_MAX_CHARS", "8192"))
+
+    @staticmethod
+    def _require(name: str) -> str:
+        value = os.getenv(name)
+        if not value:
+            raise RuntimeError(f"Environment variable {name} is required")
+        return value
+
+
+settings = Settings()
+
+
+def _validate_signature() -> None:
+    """Ensure webhook secret (if configured) matches inbound header."""
+    if not settings.webhook_secret_token:
+        return
+
+    header_token = request.headers.get("X-Gitlab-Token")
+    if header_token != settings.webhook_secret_token:
+        abort(401, description="Invalid webhook token")
+
+
+def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
+    """Project the GitLab issue payload into pipeline variables."""
+    issue = payload.get("object_attributes") or {}
+    project = payload.get("project") or {}
+    repository = payload.get("repository") or {}
+
+    action = (issue.get("action") or "").lower()
+    allowed_actions = {"open", "reopen", "update", "edited"}
+    if action not in allowed_actions:
+        logger.debug("Ignoring action '%s' (allowed=%s)", action, allowed_actions)
+        abort(202, description=f"Ignoring unsupported issue action '{action}'")
+
+    original_needs = issue.get("description") or ""
+    if len(original_needs) > settings.original_needs_max_chars:
+        suffix = "\n\n<!-- truncated -->"
+        original_needs = original_needs[: settings.original_needs_max_chars - len(suffix)] + suffix
+        logger.debug("Original needs truncated to %s chars", len(original_needs))
+
+    target_branch = (
+        project.get("default_branch")
+        or repository.get("default_branch")
+        or settings.default_target_branch
+    )
+
+    target_repo_url = (
+        project.get("http_url")
+        or project.get("git_http_url")
+        or repository.get("url")
+        or repository.get("homepage")
+        or ""
+    )
+
+    target_project_id = project.get("id") or issue.get("project_id")
+    target_project_path = project.get("path_with_namespace") or repository.get("name")
+
+    variables = {
+        "ORIGINAL_NEEDS": original_needs,
+        "TARGET_REPO_URL": target_repo_url,
+        "TARGET_BRANCH": target_branch,
+        "TARGET_PROJECT_ID": str(target_project_id or ""),
+        "TARGET_PROJECT_PATH": target_project_path or "",
+        "TARGET_ISSUE_IID": str(issue.get("iid", "")),
+        "TARGET_ISSUE_ID": str(issue.get("id", "")),
+        "ISSUE_AUTHOR_ID": str(issue.get("author_id", "")),
+        "ISSUE_TITLE": issue.get("title", ""),
+        "ISSUE_URL": issue.get("url", ""),
+        "ISSUE_ACTION": issue.get("action", ""),
+        "ISSUE_STATE": issue.get("state", ""),
+        "ISSUE_UPDATED_AT": issue.get("updated_at", ""),
+    }
+
+    missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "TARGET_ISSUE_IID") if not variables.get(k)]
+    if missing:
+        abort(400, description=f"Missing required issue/project fields: {', '.join(missing)}")
+
+    logger.debug(
+        "Extracted vars action=%s project_id=%s branch=%s repo=%s",
+        action,
+        variables["TARGET_PROJECT_ID"],
+        variables["TARGET_BRANCH"],
+        variables["TARGET_REPO_URL"],
+    )
+
+    return variables
+
+
+def _persist_payload(payload: Dict[str, Any]) -> Path:
+    """Store the raw webhook payload under hooks/ for later inspection."""
+    hooks_dir = Path("hooks")
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
+    digest = hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:10]
+    hook_path = hooks_dir / f"issue-{timestamp}-{digest}.json"
+    hook_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return hook_path
+
+
+@app.post("/webhook")
+def issue_webhook() -> Any:
+    """Handle GitLab issue update events and trigger the CI pipeline."""
+    _validate_signature()
+
+    event_name = request.headers.get("X-Gitlab-Event")
+    logger.debug("Incoming headers: %s", _sanitize_headers(request.headers))
+    if event_name != "Issue Hook":
+        abort(202, description="Unsupported event type")
+
+    payload = request.get_json(silent=True)
+    if not payload:
+        abort(400, description="Expected JSON payload")
+
+    saved_path = _persist_payload(payload)
+    logger.info("Persisted webhook payload to %s", saved_path)
+
+    vars_for_pipeline = _extract_variables(payload)
+    pipeline_project_id = settings.pipeline_project_id
+
+    trigger_url = f"{settings.gitlab_api_base}/api/v4/projects/{pipeline_project_id}/trigger/pipeline"
+    data = {
+        "token": settings.pipeline_trigger_token,
+        "ref": settings.pipeline_ref,
+    }
+    for key, value in vars_for_pipeline.items():
+        data[f"variables[{key}]"] = value
+
+    logger.debug(
+        "Trigger URL=%s ref=%s variable_keys=%s",
+        trigger_url,
+        settings.pipeline_ref,
+        sorted(vars_for_pipeline.keys()),
+    )
+
+    logger.info(
+        "Triggering pipeline %s (ref=%s) for issue #%s",
+        pipeline_project_id,
+        settings.pipeline_ref,
+        vars_for_pipeline.get("TARGET_ISSUE_IID"),
+    )
+
+    try:
+        response = requests.post(trigger_url, data=data, timeout=15)
+    except requests.RequestException as exc:  # pragma: no cover - network failure
+        logger.exception("Pipeline trigger HTTP request failed")
+        abort(502, description=f"Pipeline trigger request failed: {exc}")
+
+    if response.status_code >= 300:
+        logger.error("Pipeline trigger failed: %s", response.text)
+        abort(response.status_code, description=response.text or "Failed to trigger pipeline")
+
+    body = response.json()
+    return jsonify({
+        "status": "queued",
+        "pipeline_id": body.get("id"),
+        "web_url": body.get("web_url"),
+        "ref": body.get("ref"),
+    })
+
+
+def main() -> None:
+    host = os.getenv("LISTEN_HOST", "0.0.0.0")
+    port = int(os.getenv("LISTEN_PORT", "8080"))
+    app.run(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

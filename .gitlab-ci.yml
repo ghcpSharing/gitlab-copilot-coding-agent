@@ -1,0 +1,60 @@
+default:
+  image: satomic/copilot-cli:latest
+
+variables:
+  UPSTREAM_GITLAB_BASE_URL: "https://gitlab.com"
+
+stages:
+  - prepare
+  - plan
+  - implement
+  - finalize
+
+issue_ack:
+  stage: prepare
+  script:
+    - bash scripts/issue_ack.sh
+
+plan_todo:
+  stage: plan
+  needs: [issue_ack]
+  script:
+    - bash scripts/plan_todo.sh
+  artifacts:
+    paths:
+      - todo.md
+      - plan_raw.txt
+    reports:
+      dotenv: plan.env
+
+create_mr:
+  stage: plan
+  needs: [plan_todo]
+  script:
+    - bash scripts/create_mr.sh
+  artifacts:
+    paths:
+      - mr.json
+    reports:
+      dotenv: mr.env
+
+implement_tasks:
+  stage: implement
+  needs:
+    - plan_todo
+    - create_mr
+  script:
+    - bash scripts/implement_tasks.sh
+  artifacts:
+    paths:
+      - repo-b/todo_completed.md
+      - repo-b/patch_raw.txt
+      - repo-b/copilot.patch
+
+finalize:
+  stage: finalize
+  needs:
+    - create_mr
+    - implement_tasks
+  script:
+    - bash scripts/finalize.sh
