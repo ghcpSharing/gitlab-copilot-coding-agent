@@ -79,7 +79,7 @@ Requirements:
 - Follow existing code style and patterns
 - Include necessary imports and dependencies
 - Add inline comments for complex logic
-- Check if there is an appropriate .gitignore file; if not, create one based on the current technology stack. If it already exists, update it to match the technology stack and ensure it includes these automation files: patch_raw.txt, todo.md, plan.json
+- Check if there is an appropriate .gitignore file; if not, create one based on the current technology stack. If it already exists, update it to match the technology stack and ensure it includes these automation files: patch_raw.txt, todo.md, plan.json, commit_msg.txt
 
 Output format:
 \`\`\`diff
@@ -134,7 +134,7 @@ echo "[DEBUG] Listing untracked files..."
 git ls-files --others --exclude-standard || true
 
 # Exclude intermediate files from being tracked
-UNTRACKED_FILES=$(git ls-files --others --exclude-standard | grep -v -E '(patch_raw\.txt|copilot\.patch|todo\.md|todo_completed\.md|plan\.json|__pycache__|\.pyc$)' || true)
+UNTRACKED_FILES=$(git ls-files --others --exclude-standard | grep -v -E '(patch_raw\.txt|copilot\.patch|todo\.md|todo_completed\.md|plan\.json|commit_msg\.txt|commit_msg_raw\.txt|__pycache__|\.pyc$)' || true)
 
 echo "[DEBUG] Untracked files to be added: ${UNTRACKED_FILES:-<none>}"
 
@@ -175,11 +175,20 @@ Requirements:
 - Use conventional commit format (e.g., feat:, fix:, refactor:)
 - Keep it under 72 characters
 - Be descriptive but concise
-- Output ONLY the commit message, no explanations
+- Output ONLY the commit message, no explanations or context
+- Write the commit message to a file named 'commit_msg.txt'
 
 Generate the commit message now."
 
-  COMMIT_MSG=$(timeout 60 copilot -p "$COMMIT_MSG_PROMPT" --allow-all-tools 2>&1 | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' | tr -d '\r' | grep -v '^\[' | head -1 | xargs || true)
+  # Let Copilot create the file directly
+  timeout 60 copilot -p "$COMMIT_MSG_PROMPT" --allow-all-tools 2>&1 || true
+  
+  # Read the commit message from the file created by Copilot
+  if [ -f commit_msg.txt ]; then
+    COMMIT_MSG=$(cat commit_msg.txt | tr -d '\r\n' | xargs)
+  else
+    COMMIT_MSG=""
+  fi
   
   if [ -z "$COMMIT_MSG" ]; then
     COMMIT_MSG="feat: implement tasks via copilot automation"
