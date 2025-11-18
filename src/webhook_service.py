@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import requests
-from flask import Flask, abort, jsonify, request
+from flask import Flask, jsonify, request
 
 def _load_env_file(path: str = ".env") -> None:
     """Populate os.environ from a dotenv-style file if present."""
@@ -106,18 +106,28 @@ class Settings:
 settings = Settings()
 
 
-def _validate_signature() -> None:
-    """Ensure webhook secret (if configured) matches inbound header."""
+def _validate_signature() -> bool:
+    """Ensure webhook secret (if configured) matches inbound header.
+    
+    Returns:
+        True if validation passes, False otherwise.
+    """
     if not settings.webhook_secret_token:
-        return
+        return True
 
     header_token = request.headers.get("X-Gitlab-Token")
     if header_token != settings.webhook_secret_token:
-        abort(401, description="Invalid webhook token")
+        logger.warning("Invalid webhook token received")
+        return False
+    return True
 
 
 def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
-    """Project the GitLab issue payload into pipeline variables."""
+    """Project the GitLab issue payload into pipeline variables.
+    
+    Raises:
+        ValueError: If action is not allowed or required fields are missing.
+    """
     issue = payload.get("object_attributes") or {}
     project = payload.get("project") or {}
     repository = payload.get("repository") or {}
@@ -126,7 +136,25 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     allowed_actions = {"open", "reopen", "update", "edited"}
     if action not in allowed_actions:
         logger.debug("Ignoring action '%s' (allowed=%s)", action, allowed_actions)
-        abort(202, description=f"Ignoring unsupported issue action '{action}'")
+        raise ValueError(f"Ignoring unsupported issue action '{action}'")
+
+    # Check if Copilot is assigned in the changes
+    changes = payload.get("changes") or {}
+    assignees_change = changes.get("assignees") or {}
+    current_assignees = assignees_change.get("current") or []
+    
+    is_copilot_assigned = False
+    if current_assignees and len(current_assignees) > 0:
+        first_assignee_name = current_assignees[0].get("name", "")
+        if first_assignee_name == "Copilot":
+            is_copilot_assigned = True
+            logger.info("Copilot assigned detected, will trigger pipeline")
+        else:
+            logger.debug("First assignee is '%s', not 'Copilot'", first_assignee_name)
+    
+    if not is_copilot_assigned:
+        logger.info("Copilot not assigned in changes, skipping pipeline trigger")
+        raise ValueError("Copilot not assigned, ignoring event")
 
     original_needs = issue.get("description") or ""
     if len(original_needs) > settings.original_needs_max_chars:
@@ -169,7 +197,7 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "TARGET_ISSUE_IID") if not variables.get(k)]
     if missing:
-        abort(400, description=f"Missing required issue/project fields: {', '.join(missing)}")
+        raise ValueError(f"Missing required issue/project fields: {', '.join(missing)}")
 
     logger.debug(
         "Extracted vars action=%s project_id=%s branch=%s repo=%s",
@@ -197,21 +225,30 @@ def _persist_payload(payload: Dict[str, Any]) -> Path:
 @app.post("/webhook")
 def issue_webhook() -> Any:
     """Handle GitLab issue update events and trigger the CI pipeline."""
-    _validate_signature()
+    # Validate webhook signature
+    if not _validate_signature():
+        return jsonify({"status": "ignored", "reason": "Invalid webhook token"}), 401
 
     event_name = request.headers.get("X-Gitlab-Event")
     logger.debug("Incoming headers: %s", _sanitize_headers(request.headers))
     if event_name != "Issue Hook":
-        abort(202, description="Unsupported event type")
+        logger.debug("Ignoring non-issue event: %s", event_name)
+        return jsonify({"status": "ignored", "reason": "Unsupported event type"}), 202
 
     payload = request.get_json(silent=True)
     if not payload:
-        abort(400, description="Expected JSON payload")
+        logger.warning("Received request without JSON payload")
+        return jsonify({"status": "error", "reason": "Expected JSON payload"}), 400
 
     saved_path = _persist_payload(payload)
     logger.info("Persisted webhook payload to %s", saved_path)
 
-    vars_for_pipeline = _extract_variables(payload)
+    try:
+        vars_for_pipeline = _extract_variables(payload)
+    except ValueError as exc:
+        logger.info("Skipping event: %s", exc)
+        return jsonify({"status": "ignored", "reason": str(exc)}), 202
+    
     pipeline_project_id = settings.pipeline_project_id
 
     trigger_url = f"{settings.gitlab_api_base}/api/v4/projects/{pipeline_project_id}/trigger/pipeline"
@@ -240,11 +277,17 @@ def issue_webhook() -> Any:
         response = requests.post(trigger_url, data=data, timeout=15)
     except requests.RequestException as exc:  # pragma: no cover - network failure
         logger.exception("Pipeline trigger HTTP request failed")
-        abort(502, description=f"Pipeline trigger request failed: {exc}")
+        return jsonify({
+            "status": "error",
+            "reason": f"Pipeline trigger request failed: {exc}"
+        }), 502
 
     if response.status_code >= 300:
         logger.error("Pipeline trigger failed: %s", response.text)
-        abort(response.status_code, description=response.text or "Failed to trigger pipeline")
+        return jsonify({
+            "status": "error",
+            "reason": response.text or "Failed to trigger pipeline"
+        }), response.status_code
 
     body = response.json()
     return jsonify({
