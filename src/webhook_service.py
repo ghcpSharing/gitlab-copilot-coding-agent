@@ -122,6 +122,73 @@ def _validate_signature() -> bool:
     return True
 
 
+def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
+    """Extract variables from MR note event for pipeline.
+    
+    Raises:
+        ValueError: If required fields are missing or copilot-agent not mentioned.
+    """
+    note_attrs = payload.get("object_attributes") or {}
+    note_text = note_attrs.get("note", "")
+    
+    # Check if @copilot-agent is mentioned
+    if "@copilot-agent" not in note_text:
+        raise ValueError("@copilot-agent not mentioned in note")
+    
+    mr = payload.get("merge_request") or {}
+    project = payload.get("project") or {}
+    user = payload.get("user") or {}
+    
+    source_branch = mr.get("source_branch", "")
+    target_branch = mr.get("target_branch", "")
+    mr_iid = mr.get("iid", "")
+    mr_id = mr.get("id", "")
+    
+    target_repo_url = (
+        project.get("http_url")
+        or project.get("git_http_url")
+        or ""
+    )
+    
+    target_project_id = project.get("id") or mr.get("target_project_id")
+    target_project_path = project.get("path_with_namespace", "")
+    
+    # Extract instruction from note (remove @copilot-agent prefix)
+    instruction = note_text.replace("@copilot-agent", "").strip()
+    
+    variables = {
+        "TRIGGER_TYPE": "mr_note",
+        "MR_NOTE_INSTRUCTION": instruction,
+        "TARGET_REPO_URL": target_repo_url,
+        "TARGET_BRANCH": target_branch,
+        "SOURCE_BRANCH": source_branch,
+        "NEW_BRANCH_NAME": source_branch,  # Work on existing source branch
+        "TARGET_PROJECT_ID": str(target_project_id or ""),
+        "TARGET_PROJECT_PATH": target_project_path,
+        "TARGET_MR_IID": str(mr_iid),
+        "TARGET_MR_ID": str(mr_id),
+        "MR_TITLE": mr.get("title", ""),
+        "MR_URL": mr.get("url", ""),
+        "MR_AUTHOR_ID": str(mr.get("author_id", "")),
+        "NOTE_AUTHOR_ID": str(user.get("id", "")),
+        "NOTE_AUTHOR_USERNAME": user.get("username", ""),
+    }
+    
+    missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "SOURCE_BRANCH", "TARGET_MR_IID") if not variables.get(k)]
+    if missing:
+        raise ValueError(f"Missing required MR/project fields: {', '.join(missing)}")
+    
+    logger.debug(
+        "Extracted MR note vars project_id=%s source_branch=%s target_branch=%s mr_iid=%s",
+        variables["TARGET_PROJECT_ID"],
+        variables["SOURCE_BRANCH"],
+        variables["TARGET_BRANCH"],
+        variables["TARGET_MR_IID"],
+    )
+    
+    return variables
+
+
 def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     """Project the GitLab issue payload into pipeline variables.
     
@@ -180,6 +247,7 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     target_project_path = project.get("path_with_namespace") or repository.get("name")
 
     variables = {
+        "TRIGGER_TYPE": "issue_assignee",
         "ORIGINAL_NEEDS": original_needs,
         "TARGET_REPO_URL": target_repo_url,
         "TARGET_BRANCH": target_branch,
@@ -224,15 +292,15 @@ def _persist_payload(payload: Dict[str, Any]) -> Path:
 
 @app.post("/webhook")
 def issue_webhook() -> Any:
-    """Handle GitLab issue update events and trigger the CI pipeline."""
+    """Handle GitLab issue update events and MR note events, triggering the CI pipeline."""
     # Validate webhook signature
     if not _validate_signature():
         return jsonify({"status": "ignored", "reason": "Invalid webhook token"}), 401
 
     event_name = request.headers.get("X-Gitlab-Event")
     logger.debug("Incoming headers: %s", _sanitize_headers(request.headers))
-    if event_name != "Issue Hook":
-        logger.debug("Ignoring non-issue event: %s", event_name)
+    if event_name not in  ["Issue Hook", "Note Hook"]:
+        logger.debug("Ignoring event: %s", event_name)
         return jsonify({"status": "ignored", "reason": "Unsupported event type"}), 202
 
     payload = request.get_json(silent=True)
@@ -243,8 +311,19 @@ def issue_webhook() -> Any:
     saved_path = _persist_payload(payload)
     logger.info("Persisted webhook payload to %s", saved_path)
 
+    # Determine if this is a MR note or issue event
     try:
-        vars_for_pipeline = _extract_variables(payload)
+        if event_name == "Note Hook":
+            noteable_type = payload.get("object_attributes", {}).get("noteable_type")
+            if noteable_type == "MergeRequest":
+                logger.info("Processing MR note event")
+                vars_for_pipeline = _extract_mr_note_variables(payload)
+            else:
+                logger.debug("Ignoring note on %s", noteable_type)
+                return jsonify({"status": "ignored", "reason": f"Note on {noteable_type} not supported"}), 202
+        else:
+            logger.info("Processing issue event")
+            vars_for_pipeline = _extract_variables(payload)
     except ValueError as exc:
         logger.info("Skipping event: %s", exc)
         return jsonify({"status": "ignored", "reason": str(exc)}), 202
@@ -272,6 +351,8 @@ def issue_webhook() -> Any:
         settings.pipeline_ref,
         vars_for_pipeline.get("TARGET_ISSUE_IID"),
     )
+
+    # return jsonify({})
 
     try:
         response = requests.post(trigger_url, data=data, timeout=15)

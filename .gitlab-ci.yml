@@ -13,13 +13,18 @@ stages:
   - implement
   - finalize
 
+# Job for issue assignee workflow
 issue_ack:
   stage: prepare
+  rules:
+    - if: $TRIGGER_TYPE == "issue_assignee"
   script:
     - bash scripts/issue_ack.sh
 
 plan_todo:
   stage: plan
+  rules:
+    - if: $TRIGGER_TYPE == "issue_assignee"
   needs: [issue_ack]
   image: satomic/copilot-cli:latest
   script:
@@ -33,6 +38,8 @@ plan_todo:
 
 create_mr:
   stage: plan
+  rules:
+    - if: $TRIGGER_TYPE == "issue_assignee"
   needs: [plan_todo]
   script:
     - bash scripts/create_mr.sh
@@ -44,6 +51,8 @@ create_mr:
 
 implement_tasks:
   stage: implement
+  rules:
+    - if: $TRIGGER_TYPE == "issue_assignee"
   needs:
     - plan_todo
     - create_mr
@@ -58,8 +67,22 @@ implement_tasks:
 
 finalize:
   stage: finalize
+  rules:
+    - if: $TRIGGER_TYPE == "issue_assignee"
   needs:
     - create_mr
     - implement_tasks
   script:
     - bash scripts/finalize.sh
+
+# Job for MR note workflow
+mr_update:
+  stage: implement
+  rules:
+    - if: $TRIGGER_TYPE == "mr_note"
+  image: satomic/copilot-cli:latest
+  script:
+    - bash scripts/mr_update.sh
+  artifacts:
+    paths:
+      - repo-b/patch_raw.txt
