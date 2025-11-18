@@ -42,9 +42,9 @@ fi
 
 cd repo-b
 
-echo "[DEBUG] Contents of repo-b directory:"
-ls -ltr
-cat .gitlab-ci.yml
+# echo "[DEBUG] Contents of repo-b directory:"
+# ls -ltr
+# cat .gitlab-ci.yml
 
 echo "[INFO] Setting up branch ${NEW_BRANCH_NAME}..."
 git fetch origin "${NEW_BRANCH_NAME}" >/dev/null 2>&1 || true
@@ -93,7 +93,7 @@ if timeout 3600 copilot -p "$IMPL_PROMPT" --allow-all-tools > patch_raw.txt 2>&1
   # Clean ANSI escape sequences and carriage returns
   sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' patch_raw.txt | tr -d '\r' > patch_clean.txt
   mv patch_clean.txt patch_raw.txt
-  echo "[INFO] Raw output: $(cat patch_raw.txt)"
+  # echo "[INFO] Raw output: $(cat patch_raw.txt)"
 else
   EXIT_CODE=$?
   if [ $EXIT_CODE -eq 124 ]; then
@@ -104,8 +104,6 @@ else
   cat patch_raw.txt >&2
   exit 1
 fi
-
-echo "[DEBUG] Extracting patch from Copilot output..."
 
 python3 <<'PY'
 import re

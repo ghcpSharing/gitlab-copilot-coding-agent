@@ -13,7 +13,7 @@ require_env TARGET_ISSUE_IID
 
 echo "[INFO] Posting acknowledgment to issue ${TARGET_ISSUE_IID}..."
 
-NOTE_BODY="已读：CI 任务 $(date -Iseconds) 已经启动。"
+NOTE_BODY="👀 Acknowledged: CI task 🚀 started at $(date -Iseconds)."
 
 if ! curl --fail --silent --show-error \
   --request POST \

@@ -56,7 +56,7 @@ echo "[INFO] Posting completion comment to issue ${TARGET_ISSUE_IID}..."
 if ! curl --silent --show-error --fail \
   --request POST \
   --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-  --data-urlencode "body=自动化任务完成，最新 TODO 已同步到 MR: ${NEW_MR_URL}" \
+  --data-urlencode "body=🤖 Automation task completed, the latest TODO has been synced to MR: ${NEW_MR_URL} 👈" \
   "${API}/issues/${TARGET_ISSUE_IID}/notes" > /dev/null; then
   echo "[ERROR] Failed to post issue comment" >&2
   exit 1
