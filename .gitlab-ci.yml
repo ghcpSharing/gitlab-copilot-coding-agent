@@ -1,6 +1,12 @@
 variables:
   UPSTREAM_GITLAB_BASE_URL: "https://gitlab.com"
 
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+    - when: never
+
 stages:
   - prepare
   - plan
