@@ -42,6 +42,10 @@ fi
 
 cd repo-b
 
+echo "[DEBUG] Contents of repo-b directory:"
+ls -ltr
+cat .gitlab-ci.yml
+
 echo "[INFO] Setting up branch ${NEW_BRANCH_NAME}..."
 git fetch origin "${NEW_BRANCH_NAME}" >/dev/null 2>&1 || true
 git checkout -B "${NEW_BRANCH_NAME}" "origin/${NEW_BRANCH_NAME}" >/dev/null 2>&1 || git checkout -b "${NEW_BRANCH_NAME}" "${TARGET_BRANCH}" >/dev/null
@@ -100,6 +104,12 @@ else
   cat patch_raw.txt >&2
   exit 1
 fi
+
+echo "[DEBUG] Extracting patch from Copilot output..."
+git branch
+git diff
+git status
+cat .git/config
 
 python3 <<'PY'
 import re
