@@ -83,8 +83,8 @@ Output format:
 
 Generate the implementation now."
 
-echo "[INFO] Invoking Copilot for code generation (timeout: 600s)..."
-if timeout 600 copilot -p "$IMPL_PROMPT" > patch_raw.txt 2>&1; then
+echo "[INFO] Invoking Copilot for code generation (timeout: 3600s)..."
+if timeout 3600 copilot -p "$IMPL_PROMPT" --allow-all-tools > patch_raw.txt 2>&1; then
   echo "[INFO] Copilot code generation completed"
   # Clean ANSI escape sequences and carriage returns
   sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' patch_raw.txt | tr -d '\r' > patch_clean.txt
@@ -92,7 +92,7 @@ if timeout 600 copilot -p "$IMPL_PROMPT" > patch_raw.txt 2>&1; then
 else
   EXIT_CODE=$?
   if [ $EXIT_CODE -eq 124 ]; then
-    echo "[ERROR] Copilot timed out after 600 seconds" >&2
+    echo "[ERROR] Copilot timed out after 3600 seconds" >&2
   else
     echo "[ERROR] Copilot failed with exit code ${EXIT_CODE}" >&2
   fi
@@ -116,12 +116,36 @@ else
   echo "Copilot did not return an applyable patch"
 fi
 
-git config user.name "copilot-agent"
-git config user.email "copilot@example.com"
+git config user.name "Copilot"
+git config user.email "copilot@github.com"
 
 if ! git diff --quiet; then
   git add -A
-  git commit -m "feat: apply copilot automation" >/dev/null
+  
+  echo "[INFO] Generating commit message with Copilot..."
+  COMMIT_MSG_PROMPT="Generate a concise conventional commit message for the following changes.
+  
+Changes summary:
+$(git diff --cached --stat)
+
+Requirements:
+- Use conventional commit format (e.g., feat:, fix:, refactor:)
+- Keep it under 72 characters
+- Be descriptive but concise
+- Output ONLY the commit message, no explanations
+
+Generate the commit message now."
+
+  COMMIT_MSG=$(timeout 60 copilot -p "$COMMIT_MSG_PROMPT" --allow-all-tools 2>&1 | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' | tr -d '\r' | grep -v '^\[' | head -1 | xargs)
+  
+  if [ -z "$COMMIT_MSG" ]; then
+    COMMIT_MSG="feat: apply copilot automation"
+    echo "[WARN] Failed to generate commit message, using default"
+  else
+    echo "[INFO] Generated commit message: $COMMIT_MSG"
+  fi
+  
+  git commit -m "$COMMIT_MSG" >/dev/null
   git push --set-upstream origin "${NEW_BRANCH_NAME}" >/dev/null
 else
   echo "No changes were generated"

@@ -50,8 +50,8 @@ Example output format:
 
 Return ONLY the JSON, no additional commentary."
 
-echo "[INFO] Invoking Copilot with prompt (timeout: 300s)..."
-if timeout 300 copilot -p "$PLAN_PROMPT" > plan_raw.txt 2>&1; then
+echo "[INFO] Invoking Copilot with prompt (timeout: 3600s)..."
+if timeout 3600 copilot -p "$PLAN_PROMPT" --allow-all-tools > plan_raw.txt 2>&1; then
   echo "[INFO] Copilot execution completed"
   # Clean ANSI escape sequences and carriage returns
   sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' plan_raw.txt | tr -d '\r' > plan_clean.txt
@@ -59,7 +59,7 @@ if timeout 300 copilot -p "$PLAN_PROMPT" > plan_raw.txt 2>&1; then
 else
   EXIT_CODE=$?
   if [ $EXIT_CODE -eq 124 ]; then
-    echo "[ERROR] Copilot timed out after 300 seconds" >&2
+    echo "[ERROR] Copilot timed out after 3600 seconds" >&2
   else
     echo "[ERROR] Copilot failed with exit code ${EXIT_CODE}" >&2
   fi

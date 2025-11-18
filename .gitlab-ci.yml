@@ -1,6 +1,3 @@
-default:
-  image: satomic/copilot-cli:latest
-
 variables:
   UPSTREAM_GITLAB_BASE_URL: "https://gitlab.com"
 
@@ -18,6 +15,7 @@ issue_ack:
 plan_todo:
   stage: plan
   needs: [issue_ack]
+  image: satomic/copilot-cli:latest
   script:
     - bash scripts/plan_todo.sh
   artifacts:
@@ -43,6 +41,7 @@ implement_tasks:
   needs:
     - plan_todo
     - create_mr
+  image: satomic/copilot-cli:latest
   script:
     - bash scripts/implement_tasks.sh
   artifacts:
