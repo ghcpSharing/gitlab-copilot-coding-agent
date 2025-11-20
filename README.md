@@ -110,7 +110,11 @@ Post Summary Comment
      ```bash
      https://github.com/satomic/gitlab-copilot-coding-agent.git
      ```
+      ![#gl-create-project](images/gl-create-project.png)
+      ![#gl-import-project](images/gl-import-project.png)
+      ![#gl-repo-url](images/gl-repo-url.png)
    - The newly imported repository's visibility should be set to Internal
+      ![#gl-import-settings](images/gl-import-settings.png)
 
 2. **Configure CI/CD Variables**
    
@@ -124,7 +128,8 @@ Post Summary Comment
    ![#cicd-variables](images/cicd-variables.png)
 
 3. **Setup GitLab Runner**
-   
+   > If your GitLab instance already has available Runners with Docker/Kubernetes executors, you can skip this step.
+
    Ensure you have a GitLab Runner configured with:
    - Docker executor (recommended)
    - Access to Docker image: `satomic/copilot-cli:latest`

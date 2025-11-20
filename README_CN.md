@@ -110,7 +110,12 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
       ```bash
       https://github.com/satomic/gitlab-copilot-coding-agent.git
       ```
+      ![#gl-create-project](images/gl-create-project.png)
+      ![#gl-import-project](images/gl-import-project.png)
+      ![#gl-repo-url](images/gl-repo-url.png)
    - 新导入的仓库的可见性应该为内部可见
+      ![#gl-import-settings](images/gl-import-settings.png)
+
 
 2. **配置 CI/CD 变量**
    
@@ -124,6 +129,7 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
    ![#cicd-variables](images/cicd-variables.png)
 
 3. **设置 GitLab Runner**
+   > 如果你的 GitLab 实例已经有可用的执行器为Docker/Kubernetes的Runner，可以跳过此步骤。
    
    确保你有配置好的 GitLab Runner：
    - Docker 执行器（推荐）
