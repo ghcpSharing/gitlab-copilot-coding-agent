@@ -125,6 +125,13 @@ Post Summary Comment
    | `GITLAB_TOKEN` | Personal access token (from Step 1) | ✅ | ✅ |
    | `GITHUB_TOKEN` | GitHub Copilot CLI access token, including a valid GitHub Copilot subscription | ✅ | ✅ |
 
+   To generate the `GITHUB_TOKEN` which is a fine-grained PAT with the "Copilot Requests" permission enabled.:
+   - Visit https://github.com/settings/personal-access-tokens/new
+   - Under "Permissions," click "add permissions" and select "Copilot Requests"
+   - Generate your token
+   ![#copilot-pat](images/copilot-pat.png)
+
+
    ![#cicd-variables](images/cicd-variables.png)
 
    Remember to change the role that can use pipeline variables to Developer

@@ -125,6 +125,13 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
    |--------|------|-----------|--------|
    | `GITLAB_TOKEN` | 个人访问令牌（来自步骤 1） | ✅ | ✅ |
    | `GITHUB_TOKEN` | GitHub Copilot CLI 访问令牌，包含有效的 GitHub Copilot 订阅 | ✅ | ✅ |
+
+   生成 `GITHUB_TOKEN`，这是一个启用了“Copilot Requests”权限的细粒度个人访问令牌：
+   - 访问 https://github.com/settings/personal-access-tokens/new
+   - 在“Permissions”下，点击“add permissions”，选择“Copilot Requests”
+   - 生成你的令牌
+   ![#copilot-pat](images/copilot-pat.png)
+
   
    ![#cicd-variables](images/cicd-variables.png)
 
