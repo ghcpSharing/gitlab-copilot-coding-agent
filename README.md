@@ -2,7 +2,7 @@
 
 [中文](./README_CN.md) | English
 
-A fully automated coding agent powered by GitHub Copilot CLI and GitLab CI/CD. This system enables autonomous code implementation through issue assignments and merge request comments.
+A fully automated coding agent powered by GitHub Copilot CLI and GitLab CI/CD. This system enables autonomous code implementation through issue assignments and merge request comments. If you are interested in AI Code Review in GitLab, refer to [gitlab-copilot-code-review](https://github.com/satomic/gitlab-copilot-code-review).
 
 ## Online Example
 - Public GitLab Demo Repository [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)

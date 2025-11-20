@@ -2,7 +2,7 @@
 
 中文 | [English](./README.md)
 
-一个由 GitHub Copilot CLI 和 GitLab CI/CD 驱动的全自动代码智能体。该系统通过 Issue 分配和 Merge Request 评论实现自主代码实现。
+一个由 GitHub Copilot CLI 和 GitLab CI/CD 驱动的全自动代码智能体。该系统通过 Issue 分配和 Merge Request 评论实现自主代码实现。如果你关注在GitLab中实现AI Code Review，参考[gitlab-copilot-code-review](https://github.com/satomic/gitlab-copilot-code-review)。
 
 ## 在线示例
 - 公开 GitLab 演示仓库 [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
