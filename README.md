@@ -4,11 +4,21 @@
 
 A fully automated coding agent powered by GitHub Copilot CLI and GitLab CI/CD. This system enables autonomous code implementation through issue assignments and merge request comments. If you are interested in AI Code Review in GitLab, refer to [gitlab-copilot-code-review](https://github.com/satomic/gitlab-copilot-code-review).
 
-## Online Example
+## Demo & Example
+**Youtube Demo videos**
+
+Setup:  
+- [Copilot Coding Agent for GitLab - Setup Guide](https://www.youtube.com/watch?v=aSQVP1AAD60)
+
+How to use:  
+- [Copilot Coding Agent for GitLab - How to use 2:30 – Create an issue in the app repo and assign it to Copilot](https://www.youtube.com/watch?v=med7Bfff_m4&t=150s)
+- [Copilot Coding Agent for GitLab - How to use 11:24 – Let Copilot make some updates in the merge request via comments](https://www.youtube.com/watch?v=med7Bfff_m4&t=684s)
+
+**Example repository**
 - Public GitLab Demo Repository [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
-  - Issue: [a webhook receiver app](https://gitlab.com/agentic-devops/app-repo-01/-/issues/9)
-  - MR: [Copilot Generated MR for issue #9](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/13)
-  - Update MR with comment: [@copilot-agent change reamdme to Korean](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/15#note_2901129017)
+- Issue: [a webhook receiver app](https://gitlab.com/agentic-devops/app-repo-01/-/issues/9)
+- MR: [Copilot Generated MR for issue #9](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/13)
+- Update MR with comment: [@copilot-agent change reamdme to Korean](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/15#note_2901129017)
 
 ## 🏗️ Architecture
 
