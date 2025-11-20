@@ -1,8 +1,14 @@
 # Copilot Coding Agent with GitLab CI/CD
 
-[中文文档](./README_CN.md) | English
+[中文](./README_CN.md) | English
 
 A fully automated coding agent powered by GitHub Copilot CLI and GitLab CI/CD. This system enables autonomous code implementation through issue assignments and merge request comments.
+
+## Online Example
+- Public GitLab Demo Repository [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
+  - Issue: [a webhook receiver app](https://gitlab.com/agentic-devops/app-repo-01/-/issues/9)
+  - MR: [Copilot Generated MR for issue #9](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/13)
+  - Update MR with comment: [@copilot-agent change reamdme to Korean](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/15#note_2901129017)
 
 ## 🏗️ Architecture
 

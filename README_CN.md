@@ -1,8 +1,14 @@
 # Copilot 代码智能体（基于 GitLab CI/CD）
 
-中文文档 | [English](./README.md)
+中文 | [English](./README.md)
 
 一个由 GitHub Copilot CLI 和 GitLab CI/CD 驱动的全自动代码智能体。该系统通过 Issue 分配和 Merge Request 评论实现自主代码实现。
+
+## 在线示例
+- 公开 GitLab 演示仓库 [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
+  - Issue: [一个 webhook 接收器应用](https://gitlab.com/agentic-devops/app-repo-01/-/issues/9)
+  - MR: [针对 issue #9 的 Copilot 生成 MR](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/13)
+   - 使用评论更新 MR: [@copilot-agent 将 readme 更改为韩语](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/15#note_2901129017)
 
 ## 🏗️ 系统架构
 
