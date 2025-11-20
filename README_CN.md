@@ -77,25 +77,34 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
 ## 🚀 管理员设置指南
 
 ### 步骤 1：创建 Copilot 机器人用户（可选但推荐）
+> 建议为 Copilot 代码智能体创建一个专用的 GitLab 用户账号，以便更好地管理权限和审计活动。当然你也可以使用现有账号，但不推荐这样做。
 
 1. 创建一个名为 "Copilot" 或类似名称的新 GitLab 账号
 2. 为此账号生成个人访问令牌：
-   - 前往 **Settings** → **Access Tokens**
+   - 前往 **User Settings** → **Personal Access Tokens**
    - 令牌名称：`copilot-automation`
-   - 作用域：`api`、`read_repository`、`write_repository`
+   - 作用域：建议全选（或至少包含：`api`、`read_repository`、`write_repository`）
    - 安全保存令牌
+   ![#gitlab-pat](images/gitlab-pat.png)
 
-3. 将此用户添加为应用仓库的成员：
-   - 角色：**Developer** 或 **Maintainer**
+3. 为此用户授予适当的权限（选择其中一种方式）：
+   - **方案 A（推荐用于组织级使用）**：设置为 GitLab **管理员（Administrator）** 或群组 **Owner**
+     - 这样 Copilot 用户可以访问 GitLab 实例或群组下的所有仓库
+     - 管理多个项目时更方便
+   - **方案 B（推荐用于限定范围）**：将此用户添加为特定应用仓库的成员
+     - 角色：**Developer** 或 **Maintainer**
+     - 更精细的权限控制，适合需要限制访问范围的场景
    - 此用户将被分配 issue 并创建 merge request
 
 ### 步骤 2：设置 Copilot 代码智能体仓库
+> 使用 Copilot 用户操作
 
-1. **克隆或 fork 此仓库**
-   ```bash
-   git clone https://gitlab.com/your-group/copilot-coding-agent.git
-   cd copilot-coding-agent
-   ```
+1. **通过Git URL的方式导入此仓库到你的GitLab中**
+  - 使用步骤1中创建的Copilot用户作为仓库所有者，然后导入仓库到GitLab中：  
+      ```bash
+      https://github.com/satomic/gitlab-copilot-coding-agent.git
+      ```
+   - 新导入的仓库的可见性应该为内部可见
 
 2. **配置 CI/CD 变量**
    
@@ -105,19 +114,24 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
    |--------|------|-----------|--------|
    | `GITLAB_TOKEN` | 个人访问令牌（来自步骤 1） | ✅ | ✅ |
    | `GITHUB_TOKEN` | GitHub Copilot CLI 访问令牌，包含有效的 GitHub Copilot 订阅 | ✅ | ✅ |
+  
+   ![#cicd-variables](images/cicd-variables.png)
 
 3. **设置 GitLab Runner**
    
    确保你有配置好的 GitLab Runner：
    - Docker 执行器（推荐）
    - 可访问 Docker 镜像：`satomic/copilot-cli:latest`
-   - 标签：`docker`（或相应更新 `.gitlab-ci.yml`）
+
+   如果使用标签，请确保 Runner 有相应标签，或者根据需要更新 `.gitlab-ci.yml`。新 Runner 注册可以根据GitLab页面引导完成，可以在project层级或group层级注册Runner。以project为例：
+   ![#runner-register](images/runner-register.png)
+
 
 4. **配置 Copilot CLI 访问**
    
-   Docker 镜像 `satomic/copilot-cli:latest` 应该包含：
+   我已经构建好 Docker 镜像 `satomic/copilot-cli:latest` 包含：
    - 已安装 GitHub Copilot CLI
-   - 预配置的身份验证
+   - 预配置的身份验证，读取 `GITHUB_TOKEN` 环境变量
    
    或者构建你自己的具有 Copilot CLI 访问权限的镜像。
 
@@ -126,43 +140,56 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
 1. **创建 `.env` 文件**
    ```bash
    cat > .env << EOF
-   PIPELINE_TRIGGER_TOKEN=你的触发器令牌，在 Settings → CI/CD → Pipeline triggers 中生成
+   PIPELINE_TRIGGER_TOKEN=你的触发器令牌，在步骤2创建的仓库中 Settings → CI/CD → Pipeline trigger tokens 中生成
    PIPELINE_PROJECT_ID=你的项目ID，此仓库的项目 ID（在 Settings → General 中找到）
    PIPELINE_REF=main
    GITLAB_API_BASE=https://gitlab.com # 根据需要更改为自托管实例
    WEBHOOK_SECRET_TOKEN=
-   COPILOT_AGENT_USERNAME=copilot-agent # Copilot 机器人的 GitLab 用户名
+   COPILOT_AGENT_USERNAME=copilot-agent # Copilot 机器人的 GitLab ID
    COPILOT_AGENT_COMMIT_EMAIL=copilot@github.com # git 提交使用的邮箱
    LISTEN_HOST=0.0.0.0
    LISTEN_PORT=8080
    EOF
    ```
+   - `PIPELINE_TRIGGER_TOKEN`：在步骤 2 中创建的仓库的 **Settings** → **CI/CD** → **Pipeline trigger tokens** 中生成
+   ![#ppl-trigger-token](images/ppl-trigger-token.png)
+   - `PIPELINE_PROJECT_ID`：此仓库的项目 ID（在 **Settings** → **General** 中找到）
+   ![#ppl-project-id](images/ppl-project-id.png)
+   - `COPILOT_AGENT_USERNAME`：步骤 1 中创建的 Copilot 机器人用户的 GitLab ID
+   ![#gitlab-id](images/gitlab-id.png)
+
 
 2. **使用 Docker 运行**
    ```bash
    docker run -itd \
-     --name gitlab-copilot-coding-agent \
+     --name gitlab-copilot-coding-agent-hook \
      -p 8080:8080 \
      --env-file .env \
      --restart unless-stopped \
-     satomic/gitlab-copilot-coding-agent:latest
+     satomic/gitlab-copilot-coding-agent-hook:latest
    ```
 3. **源码运行（可选）**
    ```bash
-   git clone https://gitlab.com/satomic/gitlab-copilot-coding-agent.git
-   cd gitlab-copilot-coding-agent/webhook_service
+   git clone https://github.com/satomic/gitlab-copilot-coding-agent.git
+   cd gitlab-copilot-coding-agent/
    python3 main.py
    ```
 
+4. **Hook地址**
+   得到 Webhook 服务的公网地址，例如
+   - `http://your-server-ip:8080/webhook`
+
 ### 步骤 4：在应用仓库中配置 Webhooks
+> 一般开发者如果想要使用 Copilot 代码智能体，只需在自己的应用仓库中配置 Webhook 即可，无需访问 Copilot 代码智能体仓库。
 
 1. 前往你的**应用仓库** → **Settings** → **Webhooks**
 
 2. **创建 Issue Webhook**
-   - URL：`https://your-webhook-service-domain.com/webhook`
+   - URL：`http://your-server-ip:8080/webhook`
    - 密钥令牌：（与 `WEBHOOK_SECRET_TOKEN` 相同）
    - 触发器：✅ **Issues events** 和 ✅ **Comments** (note events)
    - 点击 **Add webhook**
+   ![#webhook](images/webhook.png)
 
 3. **测试 webhook**
    - 点击 **Test** → **Issue events**
@@ -174,18 +201,24 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
 1. **测试 Issue 分配**
    - 在应用仓库中创建测试 issue
    - 将其分配给 Copilot 用户
+   ![#issue-assign](images/issue-assign.png)
    - 观察 Copilot 代码智能体仓库中的 CI/CD pipeline 触发
+   ![#coding-agent-ppl](images/coding-agent-ppl.png)
    - 验证 MR 创建和代码实现
+   ![#mr1](images/mr1.png)
+   ![#mr2](images/mr2.png)
 
 2. **测试 MR Note**
    - 在应用仓库中创建测试 MR
    - 评论：`@copilot-agent add a hello world function`
+   ![#mr-update](images/mr-update.png)
    - 验证 pipeline 执行和代码变更
+   ![#mr-update-ppl](images/mr-update-ppl.png)
 
 3. **检查日志**
    ```bash
    # Webhook 服务日志
-   docker logs gitlab-copilot-coding-agent
+   docker logs -f gitlab-copilot-coding-agent-hook
    
    # 检查保存的 webhook 有效载荷
    ls -la hooks/

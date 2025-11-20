@@ -77,25 +77,34 @@ Post Summary Comment
 ## 🚀 Administrator Setup Guide
 
 ### Step 1: Create Copilot Bot User (Optional but Recommended)
+> Suggested to create a dedicated GitLab user account for the Copilot agent for better permission management and activity auditing. You may use an existing account, but it is not recommended.
 
 1. Create a new GitLab account named "Copilot" or similar
 2. Generate a Personal Access Token for this account:
-   - Go to **Settings** → **Access Tokens**
+   - Go to **User Settings** → **Personal Access Tokens**
    - Token name: `copilot-automation`
-   - Scopes: `api`, `read_repository`, `write_repository`
+   - Scopes: Select all scopes (or at minimum: `api`, `read_repository`, `write_repository`)
    - Save the token securely
-
-3. Add this user as a member to your App Repository:
-   - Role: **Developer** or **Maintainer**
+   ![#gitlab-pat](images/gitlab-pat.png)
+   
+3. Grant appropriate permissions to this user (choose one approach):
+   - **Option A (Recommended for organization-wide use)**: Set as GitLab **Administrator** or Group **Owner**
+     - This allows the Copilot user to access all repositories in the GitLab instance or group
+     - More convenient for managing multiple projects
+   - **Option B (Recommended for limited scope)**: Add as a member to specific App Repositories
+     - Role: **Developer** or **Maintainer**
+     - More granular control, suitable if you prefer restricted access
    - This user will be assigned to issues and create merge requests
 
 ### Step 2: Setup Copilot Coding Agent Repository
+> Using Copilot user operations
 
-1. **Clone or fork this repository**
-   ```bash
-   git clone https://gitlab.com/your-group/copilot-coding-agent.git
-   cd copilot-coding-agent
-   ```
+1. **Import this repository to your GitLab via Git URL**
+   - Use the Copilot user created in Step 1 as the repository owner, then import the repository to GitLab:
+     ```bash
+     https://github.com/satomic/gitlab-copilot-coding-agent.git
+     ```
+   - The newly imported repository's visibility should be set to Internal
 
 2. **Configure CI/CD Variables**
    
@@ -106,18 +115,22 @@ Post Summary Comment
    | `GITLAB_TOKEN` | Personal access token (from Step 1) | ✅ | ✅ |
    | `GITHUB_TOKEN` | GitHub Copilot CLI access token, including a valid GitHub Copilot subscription | ✅ | ✅ |
 
+   ![#cicd-variables](images/cicd-variables.png)
+
 3. **Setup GitLab Runner**
    
    Ensure you have a GitLab Runner configured with:
    - Docker executor (recommended)
    - Access to Docker image: `satomic/copilot-cli:latest`
-   - Tag: `docker` (or update `.gitlab-ci.yml` accordingly)
+
+   if using tags, ensure the Runner has the corresponding tags, or update `.gitlab-ci.yml` as needed. New Runner registration can be completed following GitLab's page guidance, and can be registered at the project or group level. Here is an example for project level:
+   ![#runner-register](images/runner-register.png)
 
 4. **Configure Copilot CLI Access**
    
-   The Docker image `satomic/copilot-cli:latest` should have:
+   I have built the Docker image `satomic/copilot-cli:latest` which includes:
    - GitHub Copilot CLI installed
-   - Authentication pre-configured
+   - Authentication pre-configured, reading the `GITHUB_TOKEN` environment variable
    
    Or build your own image with Copilot CLI access.
 
@@ -126,43 +139,55 @@ Post Summary Comment
 1. **Create `.env` file**
    ```bash
    cat > .env << EOF
-   PIPELINE_TRIGGER_TOKEN=your-trigger-token, Generate in Settings → CI/CD → Pipeline triggers
+   PIPELINE_TRIGGER_TOKEN=your-trigger-token, Generate in Settings → CI/CD → Pipeline trigger tokens of the repository created in Step 2
    PIPELINE_PROJECT_ID=your-project-id, This repository's project ID (found in Settings → General)
    PIPELINE_REF=main
    GITLAB_API_BASE=https://gitlab.com # Change to self-hosted instance if needed
    WEBHOOK_SECRET_TOKEN=
-   COPILOT_AGENT_USERNAME=copilot-agent # GitLab username of the Copilot bot
+   COPILOT_AGENT_USERNAME=copilot-agent # GitLab ID of the Copilot bot
    COPILOT_AGENT_COMMIT_EMAIL=copilot@github.com # Email for git commits
    LISTEN_HOST=0.0.0.0
    LISTEN_PORT=8080
    EOF
    ```
 
+   - `PIPELINE_TRIGGER_TOKEN`: Generated in **Settings** → **CI/CD** → **Pipeline trigger tokens** of the repository created in Step 2
+   ![#ppl-trigger-token](images/ppl-trigger-token.png)
+   - `PIPELINE_PROJECT_ID`: This repository's project ID (found in **Settings** → **General**)
+   ![#ppl-project-id](images/ppl-project-id.png)
+   - `COPILOT_AGENT_USERNAME`: GitLab ID of the Copilot bot user created in Step 1
+   ![#gitlab-id](images/gitlab-id.png)
+
 2. **Run with Docker**
    ```bash
    docker run -itd \
-     --name gitlab-copilot-coding-agent \
+     --name gitlab-copilot-coding-agent-hook \
      -p 8080:8080 \
      --env-file .env \
      --restart unless-stopped \
-     satomic/gitlab-copilot-coding-agent:latest
+     satomic/gitlab-copilot-coding-agent-hook:latest
    ```
 3. **Run from source (optional)**
    ```bash
-   git clone https://gitlab.com/satomic/gitlab-copilot-coding-agent.git
-   cd gitlab-copilot-coding-agent/webhook_service
+   git clone https://github.com/satomic/gitlab-copilot-coding-agent.git
+   cd gitlab-copilot-coding-agent/
    python3 main.py
    ```
+4. **Hook URL**
+   Obtain the public URL of the webhook service, e.g.,
+   - `http://your-server-ip:8080/webhook`
 
 ### Step 4: Configure Webhooks in App Repository
+> Generally, developers who want to use the Copilot coding agent only need to configure the webhook in their own app repository, without accessing the Copilot coding agent repository.
 
 1. Go to your **App Repository** → **Settings** → **Webhooks**
 
 2. **Create Issue Webhook**
-   - URL: `https://your-webhook-service-domain.com/webhook`
+   - URL: `http://your-server-ip:8080/webhook`
    - Secret Token: (same as `WEBHOOK_SECRET_TOKEN`)
    - Trigger: ✅ **Issues events** and ✅ **Comments** (note events)
    - Click **Add webhook**
+   ![#webhook](images/webhook.png)
 
 3. **Test the webhook**
    - Click **Test** → **Issue events**
@@ -174,18 +199,24 @@ Post Summary Comment
 1. **Test Issue Assignment**
    - Create a test issue in App Repository
    - Assign it to the Copilot user
+   ![#issue-assign](images/issue-assign.png)
    - Watch the CI/CD pipeline trigger in Copilot Coding Agent repo
+   ![#coding-agent-ppl](images/coding-agent-ppl.png)
    - Verify MR creation and code implementation
+   ![#mr1](images/mr1.png)
+   ![#mr2](images/mr2.png)
 
 2. **Test MR Note**
    - Create a test MR in App Repository
    - Comment: `@copilot-agent add a hello world function`
+   ![#mr-update](images/mr-update.png)
    - Verify pipeline execution and code changes
+   ![#mr-update-ppl](images/mr-update-ppl.png)
 
 3. **Check Logs**
    ```bash
    # Webhook service logs
-   docker logs gitlab-copilot-coding-agent
+   docker logs -f gitlab-copilot-coding-agent-hook
    
    # Check saved webhook payloads
    ls -la hooks/
