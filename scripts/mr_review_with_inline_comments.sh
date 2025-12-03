@@ -272,35 +272,21 @@ def post_inline_discussion(
 
     discussions_url = f"{api_url}/merge_requests/{mr_iid}/discussions"
 
-    # Prepare position data for inline comment
-    position_data = {
-        "base_sha": base_sha,
-        "start_sha": start_sha,
-        "head_sha": head_sha,
-        "position_type": "text",
-        "new_path": file_path,
-        "new_line": line_number
-    }
-
-    # Prepare discussion data
-    data = {
-        "body": comment_body,
-        "position": json.dumps(position_data)
-    }
-
-    # Build curl command
+    # Build curl command with proper form field names for position
+    # GitLab expects position[xxx] format for nested parameters
     cmd = [
-        "curl", "--silent", "--show-error", "--fail",
+        "curl", "--silent", "--show-error",
         "--request", "POST",
         "--header", f"PRIVATE-TOKEN: {token}",
-        "--header", "Content-Type: application/x-www-form-urlencoded"
+        "--data-urlencode", f"body={comment_body}",
+        "--data-urlencode", f"position[base_sha]={base_sha}",
+        "--data-urlencode", f"position[start_sha]={start_sha}",
+        "--data-urlencode", f"position[head_sha]={head_sha}",
+        "--data-urlencode", "position[position_type]=text",
+        "--data-urlencode", f"position[new_path]={file_path}",
+        "--data-urlencode", f"position[new_line]={line_number}",
+        discussions_url
     ]
-
-    # Add form data
-    for key, value in data.items():
-        cmd.extend(["--data-urlencode", f"{key}={value}"])
-
-    cmd.append(discussions_url)
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -308,7 +294,11 @@ def post_inline_discussion(
             print(f"[INFO] Posted inline comment on {file_path}:{line_number}")
             return True
         else:
-            print(f"[WARN] Failed to post inline comment: {result.stderr}", file=sys.stderr)
+            # Print the error response for debugging
+            error_msg = result.stderr if result.stderr else result.stdout
+            print(f"[WARN] Failed to post inline comment on {file_path}:{line_number}", file=sys.stderr)
+            if error_msg:
+                print(f"[DEBUG] Error: {error_msg[:200]}", file=sys.stderr)
             return False
     except Exception as e:
         print(f"[WARN] Exception posting inline comment: {e}", file=sys.stderr)
