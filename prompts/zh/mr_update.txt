@@ -22,9 +22,4 @@
 - 为复杂逻辑添加内联注释
 - 检查是否有合适的 .gitignore 文件；如果没有，根据当前技术栈创建一个。如果已经存在，更新它以匹配技术栈，并确保它包含这些自动化文件：patch_raw.txt, todo.md, plan.json, commit_msg.txt, mr_summary.txt
 
-输出格式：
-```diff
-[你的统一 diff 在这里]
-```
-
 现在生成实现。
