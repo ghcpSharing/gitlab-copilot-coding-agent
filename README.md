@@ -1,6 +1,6 @@
 # Copilot Coding Agent for GitLab
 
-[中文](./README_CN.md) | English
+[中文](./README_CN.md) | English | [日本語](./README_JA.md)
 
 A fully automated coding agent powered by GitHub Copilot CLI and GitLab CI/CD. This system enables autonomous code implementation and intelligent code review through issue assignments, merge request comments, and merge request reviewer assignments.
 
@@ -190,6 +190,8 @@ Post Detailed Review Comment
    COPILOT_AGENT_COMMIT_EMAIL=copilot@github.com # Email for git commits
    LISTEN_HOST=0.0.0.0
    LISTEN_PORT=8080
+   ENABLE_INLINE_REVIEW_COMMENTS=true
+   COPILOT_LANGUAGE=en
    EOF
    ```
 
@@ -256,10 +258,10 @@ Post Detailed Review Comment
    ![#mr-update-ppl](images/mr-update-ppl.png)
 
 3. **Test MR Reviewer**
-   - Create or open a test MR in App Repository
-   - Assign Copilot user as a Reviewer
-   - Verify pipeline execution and review comment posting
-   - Check the detailed code review report posted by Copilot
+   - Create or open a test MR in App Repository, Assign Copilot user as a Reviewer
+   ![#mr-reviewer](images/mr-reviewer.png)
+   - Verify pipeline execution and review comment posting, Check the detailed code review report posted by Copilot
+   ![#mr-review-result](images/mr-review-result.png)
 
 4. **Check Logs**
    ```bash

@@ -1,6 +1,6 @@
 # Copilot Coding Agent for GitLab
 
-中文 | [English](./README.md)
+中文 | [English](./README.md) | [日本語](./README_JA.md)
 
 一个由 GitHub Copilot CLI 和 GitLab CI/CD 驱动的全自动代码智能体。该系统通过 Issue 分配、Merge Request 评论以及 Merge Request Reviewer 指定实现自主代码实现和智能代码审查。
 
@@ -196,6 +196,8 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
    COPILOT_AGENT_COMMIT_EMAIL=copilot@github.com # git 提交使用的邮箱
    LISTEN_HOST=0.0.0.0
    LISTEN_PORT=8080
+   ENABLE_INLINE_REVIEW_COMMENTS=true
+   COPILOT_LANGUAGE=zh
    EOF
    ```
    - `PIPELINE_TRIGGER_TOKEN`：在步骤 2 中创建的仓库的 **Settings** → **CI/CD** → **Pipeline trigger tokens** 中生成
@@ -263,10 +265,10 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
    ![#mr-update-ppl](images/mr-update-ppl.png)
 
 3. **测试 MR Reviewer**
-   - 在应用仓库中创建或打开测试 MR
-   - 在 Reviewers 中指定 Copilot 用户
-   - 验证 pipeline 执行和审查评论发布
-   - 查看 Copilot 发布的详细代码审查报告
+   - 在应用仓库中创建或打开测试 MR，在 Reviewers 中指定 Copilot 用户
+   ![#mr-reviewer](images/mr-reviewer.png)
+   - 验证 pipeline 执行和审查评论发布，并查看 Copilot 发布的详细代码审查报告
+   ![#mr-review-result](images/mr-review-result.png)
 
 4. **检查日志**
    ```bash
