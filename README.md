@@ -16,10 +16,10 @@ How to use:
 
 **Example repository**
 - Public GitLab Demo Repository [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
-- Issue: [a webhook receiver app](https://gitlab.com/agentic-devops/app-repo-01/-/issues/9)
-- MR: [Copilot Generated MR for issue #9](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/13)
-- Update MR with comment: [@copilot-agent change reamdme to Korean](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/15#note_2901129017)
-- Code Review: [Assign Copilot as MR Reviewer](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/16#note_2929461255)
+- Issue: [A Webhook Receiver Application](https://gitlab.com/agentic-devops/app-repo-01/-/issues/21)
+- MR: [A Webhook Receiver Application (#21)](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26)
+- Update MR with comment: [@copilot-agent Change readme to Spanish](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930260370)
+- Code Review: [Assign Copilot as MR Reviewer](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930279091)
 
 ## 🏗️ Architecture
 

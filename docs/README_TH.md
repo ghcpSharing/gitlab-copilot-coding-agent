@@ -16,10 +16,10 @@
 
 **ตัวอย่าง repository**
 - GitLab Demo Repository สาธารณะ [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
-- Issue: [a webhook receiver app](https://gitlab.com/agentic-devops/app-repo-01/-/issues/9)
-- MR: [Copilot Generated MR for issue #9](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/13)
-- อัปเดต MR ด้วยความคิดเห็น: [@copilot-agent change reamdme to Korean](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/15#note_2901129017)
-- การตรวจสอบโค้ด: [Assign Copilot as MR Reviewer](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/16#note_2929461255)
+- Issue: [แอปพลิเคชัน webhook receiver](https://gitlab.com/agentic-devops/app-repo-01/-/issues/20)
+- MR: [แอปพลิเคชัน webhook receiver (#20)](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/25)
+- อัปเดต MR ด้วยความคิดเห็น: [@copilot-agent เปลี่ยน readme เป็นภาษาไทย](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/25#note_2930077924)
+- การตรวจสอบโค้ด: [กำหนด Copilot เป็นผู้ตรวจสอบ MR](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/25#note_2930095536)
 
 ## 🏗️ สถาปัตยกรรม
 
