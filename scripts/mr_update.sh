@@ -29,7 +29,7 @@ echo "[INFO] Instruction: ${MR_NOTE_INSTRUCTION}"
 echo "[INFO] Posting acknowledgment to MR ${TARGET_MR_IID}..."
 
 # Load acknowledgment message template
-NOTE_BODY=$(load_prompt "issue_ack" "timestamp=$(date -Iseconds)")
+NOTE_BODY=$(load_prompt "issue_ack")
 
 if [ -n "${CI_PIPELINE_URL:-}" ]; then
   NOTE_BODY="${NOTE_BODY}

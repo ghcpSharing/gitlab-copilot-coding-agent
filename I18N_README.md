@@ -70,10 +70,6 @@ prompts/
 source scripts/load_prompt.sh
 
 # Load a prompt with variable substitution
-PROMPT=$(load_prompt "issue_ack" "timestamp=$(date -Iseconds)")
-
-# Or using environment variables
-export timestamp=$(date -Iseconds)
 PROMPT=$(load_prompt "issue_ack")
 ```
 
@@ -106,7 +102,7 @@ Create the following files in `prompts/<lang_code>/`:
 
 1. **issue_ack.txt** - Issue acknowledgment message
    ```
-   Variables: {timestamp}
+   Variables: (none)
    ```
 
 2. **plan_todo.txt** - Planning prompt

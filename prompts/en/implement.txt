@@ -22,9 +22,4 @@ Requirements:
 - Add inline comments for complex logic
 - Check if there is an appropriate .gitignore file; if not, create one based on the current technology stack. If it already exists, update it to match the technology stack and ensure it includes these automation files: patch_raw.txt, todo.md, plan.json, commit_msg.txt
 
-Output format:
-```diff
-[your unified diff here]
-```
-
 Generate the implementation now.

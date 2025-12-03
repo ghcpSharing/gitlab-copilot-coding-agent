@@ -23,7 +23,7 @@ require_env TARGET_ISSUE_IID
 echo "[INFO] Posting acknowledgment to issue ${TARGET_ISSUE_IID}..."
 
 # Load acknowledgment message template
-NOTE_BODY=$(load_prompt "issue_ack" "timestamp=$(date -Iseconds)")
+NOTE_BODY=$(load_prompt "issue_ack")
 
 if [ -n "${CI_PIPELINE_URL:-}" ]; then
   NOTE_BODY="${NOTE_BODY}
