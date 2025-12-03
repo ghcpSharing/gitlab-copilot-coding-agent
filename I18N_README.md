@@ -22,6 +22,7 @@ prompts/
 │   ├── implement.txt
 │   ├── commit_msg.txt
 │   ├── mr_completion.txt
+│   ├── mr_exists.txt
 │   └── code_review.txt
 ├── zh/               # Chinese prompts
 │   ├── issue_ack.txt
@@ -29,6 +30,7 @@ prompts/
 │   ├── implement.txt
 │   ├── commit_msg.txt
 │   ├── mr_completion.txt
+│   ├── mr_exists.txt
 │   └── code_review.txt
 └── ja/               # Japanese prompts
     ├── issue_ack.txt
@@ -36,6 +38,7 @@ prompts/
     ├── implement.txt
     ├── commit_msg.txt
     ├── mr_completion.txt
+    ├── mr_exists.txt
     └── code_review.txt
 ```
 
@@ -114,7 +117,12 @@ Create the following files in `prompts/<lang_code>/`:
    Variables: {mr_url}
    ```
 
-6. **code_review.txt** - Code review prompt
+6. **mr_exists.txt** - MR already exists notification
+   ```
+   Variables: {mr_url}, {copilot_username}, {assigner_username}
+   ```
+
+7. **code_review.txt** - Code review prompt
    ```
    Variables: {mr_title}, {mr_description}, {source_branch}, {target_branch},
               {changed_files}, {commit_messages}, {code_diff}

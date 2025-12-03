@@ -1,0 +1,7 @@
+🔄 A merge request for this issue already exists!
+
+📋 **Existing MR**: {mr_url}
+
+If you want to continue working on this issue, please go to the MR above and mention @{copilot_username} with your instructions in a comment.
+
+cc @{assigner_username}

@@ -296,6 +296,8 @@ Post Detailed Review Comment
    - Code is implemented automatically
    - Final comment notifies completion
 
+   > **Note**: If a merge request already exists for the issue, Copilot will detect it and post a notification in the issue, asking you to continue work in the existing MR instead of creating a duplicate.
+
 4. **Review & Merge**
    - Review the generated code in the MR
    - Request changes if needed (see MR Note usage below)

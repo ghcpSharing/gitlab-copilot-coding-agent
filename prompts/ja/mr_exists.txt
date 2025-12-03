@@ -1,0 +1,7 @@
+🔄 この issue のマージリクエストは既に存在します！
+
+📋 **既存の MR**：{mr_url}
+
+この issue の作業を続けたい場合は、上記の MR に移動し、コメントで @{copilot_username} にメンションして指示を出してください。
+
+cc @{assigner_username}

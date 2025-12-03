@@ -303,6 +303,8 @@ Issue 分配给 Copilot → Webhook → 触发 Pipeline →
    - 自动实现代码
    - 最终评论通知完成
 
+   > **注意**：如果该 issue 的 merge request 已经存在，Copilot 会检测到并在 issue 中发布通知，要求您在现有 MR 中继续工作，而不会创建重复的 MR。
+
 4. **审查和合并**
    - 在 MR 中审查生成的代码
    - 如需要可请求更改（见下方 MR Note 用法）

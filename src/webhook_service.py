@@ -288,13 +288,14 @@ def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
 
 def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     """Project the GitLab issue payload into pipeline variables.
-    
+
     Raises:
         ValueError: If action is not allowed or required fields are missing.
     """
     issue = payload.get("object_attributes") or {}
     project = payload.get("project") or {}
     repository = payload.get("repository") or {}
+    user = payload.get("user") or {}
 
     action = (issue.get("action") or "").lower()
     allowed_actions = {"open", "reopen", "update", "edited"}
@@ -358,6 +359,7 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "ISSUE_ACTION": issue.get("action", ""),
         "ISSUE_STATE": issue.get("state", ""),
         "ISSUE_UPDATED_AT": issue.get("updated_at", ""),
+        "ISSUE_ASSIGNEE_USERNAME": user.get("username", ""),
         "COPILOT_AGENT_USERNAME": settings.copilot_agent_username,
         "COPILOT_AGENT_COMMIT_EMAIL": settings.copilot_agent_commit_email,
         "COPILOT_LANGUAGE": settings.copilot_language,

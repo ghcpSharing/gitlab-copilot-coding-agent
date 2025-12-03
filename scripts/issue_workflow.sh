@@ -181,14 +181,65 @@ if [ -n "${TARGET_ISSUE_IID:-}" ]; then
 fi
 
 echo "[INFO] Creating merge request: ${MR_TITLE}..."
-if ! curl --silent --show-error --fail \
+HTTP_CODE=$(curl --silent --show-error --write-out "%{http_code}" --output mr.json \
   --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
   --data-urlencode "source_branch=${NEW_BRANCH_NAME}" \
   --data-urlencode "target_branch=${TARGET_BRANCH}" \
   --data-urlencode "title=${MR_TITLE}" \
   --data-urlencode description@mr_description.txt \
-  "${API}/merge_requests" > mr.json; then
-  echo "[ERROR] Failed to create merge request" >&2
+  "${API}/merge_requests")
+
+if [ "$HTTP_CODE" = "409" ]; then
+  echo "[WARN] Merge request already exists (HTTP 409)"
+
+  # Try to find the existing MR by source branch
+  echo "[INFO] Searching for existing MR with source branch ${NEW_BRANCH_NAME}..."
+  curl --silent --show-error \
+    --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+    "${API}/merge_requests?source_branch=${NEW_BRANCH_NAME}&state=opened" > existing_mr.json
+
+  # Parse the existing MR URL
+  EXISTING_MR_URL=$(python3 <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("existing_mr.json").read_text(encoding="utf-8"))
+if data and len(data) > 0:
+    print(data[0].get("web_url", ""))
+else:
+    print("")
+PY
+)
+
+  if [ -n "$EXISTING_MR_URL" ]; then
+    echo "[INFO] Found existing MR: ${EXISTING_MR_URL}"
+
+    # Get the username of the person who assigned the issue
+    ASSIGNER_USERNAME="${ISSUE_ASSIGNEE_USERNAME:-unknown}"
+
+    # Load MR exists notification template
+    MR_EXISTS_BODY=$(load_prompt "mr_exists" \
+      "mr_url=${EXISTING_MR_URL}" \
+      "copilot_username=${COPILOT_AGENT_USERNAME}" \
+      "assigner_username=${ASSIGNER_USERNAME}")
+
+    # Post notification to issue
+    echo "[INFO] Posting notification to issue ${TARGET_ISSUE_IID}..."
+    curl --silent --show-error --fail \
+      --request POST \
+      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+      --data-urlencode "body=${MR_EXISTS_BODY}" \
+      "${API}/issues/${TARGET_ISSUE_IID}/notes" > /dev/null || true
+
+    echo "[INFO] Workflow stopped: MR already exists"
+    exit 0
+  else
+    echo "[ERROR] Could not find existing MR" >&2
+    exit 1
+  fi
+elif [ "$HTTP_CODE" != "201" ]; then
+  echo "[ERROR] Failed to create merge request (HTTP ${HTTP_CODE})" >&2
+  cat mr.json >&2
   exit 1
 fi
 
