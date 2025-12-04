@@ -229,10 +229,13 @@ if [ "${ENABLE_INLINE_REVIEW_COMMENTS:-false}" = "true" ] && [ -f review_results
   echo "=== Phase 4: Posting Inline Comments ==="
   echo ""
   
-  # 获取commit SHAs
+  # 获取commit SHAs并导出环境变量供Python使用
   export BASE_SHA=$(git rev-parse "origin/${TARGET_BRANCH}")
   export HEAD_SHA=$(git rev-parse "origin/${SOURCE_BRANCH}")
   export START_SHA=$(git merge-base "origin/${TARGET_BRANCH}" "origin/${SOURCE_BRANCH}")
+  export API="${API}"
+  export GITLAB_TOKEN="${GITLAB_TOKEN}"
+  export TARGET_MR_IID="${TARGET_MR_IID}"
   
   echo "[DEBUG] BASE_SHA=${BASE_SHA}"
   echo "[DEBUG] HEAD_SHA=${HEAD_SHA}"
