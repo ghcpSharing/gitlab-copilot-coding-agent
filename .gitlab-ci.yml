@@ -13,6 +13,9 @@ stages:
 # Job for issue assignee workflow (optimized single job)
 issue_workflow:
   stage: implement
+  tags:
+    - k8s
+    - copilot
   rules:
     - if: $TRIGGER_TYPE == "issue_assignee"
   image: satomic/copilot-cli:latest
@@ -31,6 +34,9 @@ issue_workflow:
 # Job for MR note workflow
 mr_update:
   stage: implement
+  tags:
+    - k8s
+    - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_note"
   image: satomic/copilot-cli:latest
@@ -44,6 +50,9 @@ mr_update:
 # Job for MR reviewer workflow
 mr_review:
   stage: implement
+  tags:
+    - k8s
+    - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_reviewer"
   image: satomic/copilot-cli:latest
