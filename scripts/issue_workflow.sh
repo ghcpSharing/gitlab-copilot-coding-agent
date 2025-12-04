@@ -70,16 +70,34 @@ PLAN_PROMPT=$(load_prompt "plan_todo" \
   "issue_description=${ORIGINAL_NEEDS}")
 
 echo "[INFO] Invoking Copilot to generate plan.json (timeout: 3600s)..."
+echo "[DEBUG] GITHUB_TOKEN is set: ${GITHUB_TOKEN:+yes}"
+echo "[DEBUG] Running: copilot -p <prompt> --allow-all-tools"
+
+# 先确保日志文件存在
+touch copilot_output.log
+
 if timeout 3600 copilot -p "$PLAN_PROMPT" --allow-all-tools > copilot_output.log 2>&1; then
   echo "[INFO] Copilot execution completed"
 else
   EXIT_CODE=$?
+  echo ""
+  echo "=========================================="
+  echo "[ERROR] Copilot failed!"
+  echo "=========================================="
   if [ $EXIT_CODE -eq 124 ]; then
     echo "[ERROR] Copilot timed out after 3600 seconds" >&2
   else
-    echo "[ERROR] Copilot failed with exit code ${EXIT_CODE}" >&2
+    echo "[ERROR] Exit code: ${EXIT_CODE}" >&2
   fi
-  cat copilot_output.log >&2
+  echo ""
+  echo "--- copilot_output.log contents ---"
+  if [ -s copilot_output.log ]; then
+    cat copilot_output.log
+  else
+    echo "(empty or file not found)"
+  fi
+  echo "--- end of copilot_output.log ---"
+  echo ""
   exit 1
 fi
 
