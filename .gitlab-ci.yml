@@ -74,3 +74,7 @@ mr_review:
       - repo-b/review_raw.txt
       - repo-b/review_summary.txt
       - repo-b/review_findings.json
+      - repo-b/task_plan.json
+      - repo-b/review_results.json
+      - repo-b/review_summary.md
+      - repo-b/review_comment.txt

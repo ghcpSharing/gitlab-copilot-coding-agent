@@ -21,9 +21,13 @@ require_env TARGET_MR_IID
 require_env MR_TITLE
 require_env MR_DESCRIPTION
 
+# 创建工作目录（与其他脚本保持一致）
+mkdir -p repo-b
+cd repo-b
+
 echo "=========================================="
 echo "  🤖 Orchestrated MR Code Review"
-echo "=========================================="
+echo "========================================="
 echo "[INFO] MR #${TARGET_MR_IID}: ${MR_TITLE}"
 echo "[INFO] ${SOURCE_BRANCH} → ${TARGET_BRANCH}"
 echo ""
