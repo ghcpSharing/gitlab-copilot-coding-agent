@@ -71,6 +71,15 @@ PLAN_PROMPT=$(load_prompt "plan_todo" \
 
 echo "[INFO] Invoking Copilot to generate plan.json (timeout: 3600s)..."
 echo "[DEBUG] GITHUB_TOKEN is set: ${GITHUB_TOKEN:+yes}"
+echo "[DEBUG] GITHUB_TOKEN length: ${#GITHUB_TOKEN}"
+echo "[DEBUG] GITHUB_TOKEN prefix: ${GITHUB_TOKEN:0:10}..."
+
+# 先测试 Copilot 是否能正常工作
+echo "[DEBUG] Testing Copilot with simple prompt..."
+if ! copilot -p "Say hello" 2>&1 | head -20; then
+  echo "[ERROR] Copilot basic test failed"
+fi
+
 echo "[DEBUG] Running: copilot -p <prompt> --allow-all-tools"
 
 # 先确保日志文件存在
