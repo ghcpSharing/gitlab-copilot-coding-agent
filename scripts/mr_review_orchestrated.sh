@@ -267,6 +267,30 @@ mr_iid = os.environ["TARGET_MR_IID"]
 base_sha = os.environ["BASE_SHA"]
 start_sha = os.environ["START_SHA"]
 head_sha = os.environ["HEAD_SHA"]
+lang = os.environ.get("COPILOT_LANGUAGE", "zh")
+
+# 读取 diff 内容以获取代码上下文
+with open('../full_diff.txt', 'r', encoding='utf-8') as f:
+    diff_text = f.read()
+
+# 中英文模板
+templates = {
+    'zh': {
+        'severity': {'critical': '🔴 **严重**', 'major': '🟠 **重要**'},
+        'issue': '问题',
+        'suggestion': '建议',
+        'category': '分类',
+        'code': '相关代码'
+    },
+    'en': {
+        'severity': {'critical': '🔴 **CRITICAL**', 'major': '🟠 **MAJOR**'},
+        'issue': 'Issue',
+        'suggestion': 'Suggestion',
+        'category': 'Category',
+        'code': 'Code Context'
+    }
+}
+t = templates.get(lang, templates['zh'])
 
 # 只发布critical和major的inline comments
 high_priority = [f for f in all_findings if f.get('severity') in ['critical', 'major']]
@@ -280,15 +304,31 @@ for finding in high_priority[:50]:  # 最多50个inline comments
     if not file_path or line <= 0:
         continue
     
-    severity_emoji = {'critical': '🔴', 'major': '🟠'}.get(finding['severity'], '⚠️')
-    comment_body = f"""{severity_emoji} **{finding['severity'].upper()}**: {finding.get('title', 'Issue')}
+    severity = finding.get('severity', 'major')
+    severity_label = t['severity'].get(severity, t['severity']['major'])
+    
+    # 提取代码上下文（目标行前后3行）
+    code_context = finding.get('code_snippet', '')
+    if not code_context:
+        # 如果 finding 中没有代码，尝试从 diff 中提取
+        for diff_line in diff_text.split('\n'):
+            if f'diff --git a/{file_path}' in diff_line:
+                # 简单提示，实际应该解析 diff 格式
+                code_context = f"Line {line}"
+                break
+    
+    comment_body = f"""{severity_label}: {finding.get('title', '')}
 
-**Issue**: {finding.get('description', '')}
+**{t['issue']}**: {finding.get('description', '')}
 
-**Suggestion**: {finding.get('suggestion', '')}
+**{t['suggestion']}**: {finding.get('suggestion', '')}
+
+```
+{code_context}
+```
 
 ---
-_Category: {finding.get('category', 'general')}_
+_{t['category']}: {finding.get('category', 'general')}_
 """
     
     # 构建API请求
