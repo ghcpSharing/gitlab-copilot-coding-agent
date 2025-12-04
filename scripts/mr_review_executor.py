@@ -78,11 +78,13 @@ def execute_review_with_copilot(
     prompt_file = subtask_workspace / "review_prompt.txt"
     prompt_file.write_text(prompt, encoding='utf-8')
     
-    # 调用Copilot
+    # 调用Copilot (使用标准输入避免参数长度限制)
     print(f"[INFO] Calling Copilot CLI for review...")
+    print(f"[INFO] Prompt size: {len(prompt)} chars, {len(prompt.encode('utf-8'))} bytes")
     try:
         result = subprocess.run(
-            ['copilot', '-p', prompt, '--allow-all-tools'],
+            ['copilot', '--allow-all-tools'],
+            input=prompt,
             capture_output=True,
             text=True,
             timeout=subtask.estimated_time_seconds,
