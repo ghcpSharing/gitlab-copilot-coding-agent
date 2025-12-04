@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""
+MR Review任务执行器和结果聚合器
+执行拆分后的review子任务，并聚合所有findings
+"""
+import sys
+import os
+import subprocess
+import json
+import tempfile
+from pathlib import Path
+from typing import List, Dict
+from task_framework import TaskPlan, SubTask, TaskExecutor, TaskAggregator
+
+
+def get_diff_for_files(base_branch: str, head_branch: str, file_patterns: List[str]) -> str:
+    """获取指定文件的diff"""
+    if not file_patterns:
+        # 没有指定文件，返回全部diff
+        result = subprocess.run(
+            ['git', 'diff', f'{base_branch}...{head_branch}'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout
+    
+    # 获取指定文件的diff
+    cmd = ['git', 'diff', f'{base_branch}...{head_branch}', '--'] + file_patterns
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=True
+    )
+    return result.stdout
+
+
+def execute_review_with_copilot(
+    subtask: SubTask,
+    diff_content: str,
+    prompt_template_path: Path,
+    workspace: Path
+) -> Dict:
+    """
+    使用Copilot执行代码审查
+    
+    Args:
+        subtask: 子任务信息
+        diff_content: diff内容
+        prompt_template_path: prompt模板文件路径
+        workspace: 工作目录
+    
+    Returns:
+        包含findings的字典
+    """
+    print(f"[INFO] Executing review for subtask: {subtask.id}")
+    print(f"[INFO] Reviewing {len(subtask.file_patterns)} files")
+    print(f"[INFO] Diff size: {len(diff_content)} bytes")
+    
+    # 读取prompt模板
+    if not prompt_template_path.exists():
+        raise FileNotFoundError(f"Prompt template not found: {prompt_template_path}")
+    
+    prompt_template = prompt_template_path.read_text(encoding='utf-8')
+    
+    # 替换变量
+    prompt = prompt_template.replace('{code_diff}', diff_content)
+    prompt = prompt.replace('{changed_files}', ', '.join(subtask.file_patterns))
+    prompt = prompt.replace('{mr_title}', subtask.title)
+    prompt = prompt.replace('{mr_description}', subtask.description)
+    
+    # 为此子任务创建临时工作目录
+    subtask_workspace = workspace / f"subtask_{subtask.id}"
+    subtask_workspace.mkdir(parents=True, exist_ok=True)
+    
+    # 保存prompt
+    prompt_file = subtask_workspace / "review_prompt.txt"
+    prompt_file.write_text(prompt, encoding='utf-8')
+    
+    # 调用Copilot
+    print(f"[INFO] Calling Copilot CLI for review...")
+    try:
+        result = subprocess.run(
+            ['copilot', '-p', prompt, '--allow-all-tools'],
+            capture_output=True,
+            text=True,
+            timeout=subtask.estimated_time_seconds,
+            cwd=subtask_workspace
+        )
+        
+        # 保存原始输出
+        (subtask_workspace / "copilot_raw.txt").write_text(result.stdout, encoding='utf-8')
+        
+        if result.returncode != 0:
+            print(f"[WARN] Copilot returned non-zero exit code: {result.returncode}")
+            print(f"[WARN] stderr: {result.stderr[:500]}")
+        
+    except subprocess.TimeoutExpired:
+        print(f"[ERROR] Copilot timeout after {subtask.estimated_time_seconds}s")
+        return {
+            'status': 'timeout',
+            'error': f'Timeout after {subtask.estimated_time_seconds}s',
+            'findings': []
+        }
+    except Exception as e:
+        print(f"[ERROR] Failed to execute Copilot: {e}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'findings': []
+        }
+    
+    # 查找生成的review_findings.json
+    findings_file = subtask_workspace / "review_findings.json"
+    
+    if not findings_file.exists():
+        print(f"[WARN] review_findings.json not found for subtask {subtask.id}")
+        print(f"[WARN] Copilot may not have generated findings")
+        
+        # 尝试从原始输出中解析
+        # (这里可以添加更复杂的解析逻辑)
+        
+        return {
+            'status': 'no_findings',
+            'message': 'No findings file generated',
+            'findings': []
+        }
+    
+    # 读取findings
+    try:
+        findings_data = json.loads(findings_file.read_text(encoding='utf-8'))
+        
+        # 为每个finding添加subtask信息
+        findings = findings_data.get('findings', [])
+        for finding in findings:
+            finding['subtask_id'] = subtask.id
+            finding['subtask_category'] = subtask.metadata.get('category', 'unknown')
+        
+        print(f"[SUCCESS] Found {len(findings)} issues in subtask {subtask.id}")
+        
+        return {
+            'status': 'success',
+            'summary': findings_data.get('summary', ''),
+            'recommendation': findings_data.get('recommendation', 'NEEDS_DISCUSSION'),
+            'findings_count': len(findings),
+            'findings': findings,
+            'findings_file': str(findings_file)
+        }
+        
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Invalid JSON in findings file: {e}")
+        return {
+            'status': 'invalid_json',
+            'error': str(e),
+            'findings': []
+        }
+
+
+def create_review_handler(plan: TaskPlan, workspace: Path):
+    """创建review任务处理器"""
+    
+    def handle_review_task(subtask: SubTask) -> Dict:
+        """处理单个review子任务"""
+        base_branch = plan.metadata.get('base_branch', 'main')
+        head_branch = plan.metadata.get('head_branch', 'HEAD')
+        
+        # 获取此子任务的diff
+        diff_content = get_diff_for_files(base_branch, head_branch, subtask.file_patterns)
+        
+        if not diff_content.strip():
+            return {
+                'status': 'no_changes',
+                'message': 'No changes in specified files',
+                'findings': []
+            }
+        
+        # 检查diff大小
+        diff_size = len(diff_content.encode('utf-8'))
+        if diff_size > subtask.max_diff_size_bytes:
+            print(f"[WARN] Diff size ({diff_size}) exceeds limit ({subtask.max_diff_size_bytes})")
+            print(f"[WARN] Truncating diff...")
+            diff_content = diff_content[:subtask.max_diff_size_bytes]
+        
+        # 确定prompt模板路径
+        lang = os.getenv('COPILOT_LANGUAGE', 'zh')
+        prompt_path = Path(__file__).parent.parent / f'prompts/{lang}/code_review.txt'
+        
+        if not prompt_path.exists():
+            print(f"[WARN] Prompt not found for language {lang}, falling back to English")
+            prompt_path = Path(__file__).parent.parent / 'prompts/en/code_review.txt'
+        
+        # 执行review
+        return execute_review_with_copilot(
+            subtask=subtask,
+            diff_content=diff_content,
+            prompt_template_path=prompt_path,
+            workspace=workspace
+        )
+    
+    return handle_review_task
+
+
+def aggregate_review_results(subtasks: List[SubTask]) -> Dict:
+    """聚合review结果"""
+    all_findings = []
+    stats = {
+        'critical': 0,
+        'major': 0,
+        'minor': 0,
+        'suggestion': 0
+    }
+    
+    total_files_reviewed = set()
+    
+    for subtask in subtasks:
+        if not subtask.result or subtask.result.get('status') != 'success':
+            continue
+        
+        findings = subtask.result.get('findings', [])
+        all_findings.extend(findings)
+        
+        # 统计severity
+        for finding in findings:
+            severity = finding.get('severity', 'minor')
+            if severity in stats:
+                stats[severity] += 1
+        
+        # 统计审查的文件
+        total_files_reviewed.update(subtask.file_patterns)
+    
+    # 确定总体建议
+    if stats['critical'] > 0:
+        recommendation = 'REQUEST_CHANGES'
+    elif stats['major'] > 5:
+        recommendation = 'REQUEST_CHANGES'
+    elif stats['major'] > 0 or stats['minor'] > 10:
+        recommendation = 'NEEDS_DISCUSSION'
+    else:
+        recommendation = 'APPROVE'
+    
+    return {
+        'total_findings': len(all_findings),
+        'statistics': stats,
+        'recommendation': recommendation,
+        'files_reviewed': len(total_files_reviewed),
+        'subtasks_completed': len([st for st in subtasks if st.status.value == 'completed']),
+        'subtasks_failed': len([st for st in subtasks if st.status.value == 'failed']),
+        'findings': all_findings
+    }
+
+
+def main():
+    """主函数"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Execute MR Review Task Plan')
+    parser.add_argument('--plan', required=True, help='Path to task_plan.json')
+    parser.add_argument('--workspace', default='.', help='Working directory')
+    parser.add_argument('--output', default='review_results.json', help='Output file')
+    parser.add_argument('--summary-output', default='review_summary.md', help='Summary markdown file')
+    
+    args = parser.parse_args()
+    
+    try:
+        # 加载计划
+        plan = TaskPlan.load(Path(args.plan))
+        workspace = Path(args.workspace).absolute()
+        
+        print(f"[INFO] Loaded plan: {plan.task_id}")
+        print(f"[INFO] Workspace: {workspace}")
+        
+        # 创建任务处理器
+        task_handlers = {
+            'review': create_review_handler(plan, workspace),
+            'default': lambda st: {'status': 'skipped', 'message': 'No handler for this task type'}
+        }
+        
+        # 执行任务
+        with TaskExecutor(plan, task_handlers) as executor:
+            execution_result = executor.execute()
+        
+        # 聚合结果
+        aggregator = TaskAggregator(plan, execution_result)
+        aggregators = {
+            'review': aggregate_review_results,
+            'default': lambda subtasks: {'subtask_count': len(subtasks)}
+        }
+        
+        aggregated = aggregator.aggregate(aggregators)
+        
+        # 保存结果
+        output_path = Path(args.output)
+        output_path.write_text(json.dumps(aggregated, indent=2), encoding='utf-8')
+        print(f"\n[SUCCESS] Results saved to {output_path}")
+        
+        # 生成摘要
+        summary_md = aggregator.generate_summary_markdown(aggregated)
+        
+        # 添加review特定的详细信息
+        if 'review' in aggregated.get('results_by_type', {}):
+            review_results = aggregated['results_by_type']['review']
+            summary_md += f"""
+### 代码审查详情
+
+**总体建议**: **{review_results['recommendation']}**
+
+**发现的问题**:
+- 🔴 Critical: {review_results['statistics']['critical']}
+- 🟠 Major: {review_results['statistics']['major']}
+- 🟡 Minor: {review_results['statistics']['minor']}
+- 💡 Suggestions: {review_results['statistics']['suggestion']}
+
+**审查覆盖**:
+- 📁 审查文件数: {review_results['files_reviewed']}
+- ✅ 完成的子任务: {review_results['subtasks_completed']}
+- ❌ 失败的子任务: {review_results['subtasks_failed']}
+
+"""
+            
+            # 添加高优先级问题
+            critical_major = [f for f in review_results['findings'] 
+                            if f.get('severity') in ['critical', 'major']]
+            
+            if critical_major:
+                summary_md += "### ⚠️ 关键问题\n\n"
+                for finding in critical_major[:10]:  # 只显示前10个
+                    emoji = "🔴" if finding['severity'] == 'critical' else "🟠"
+                    summary_md += f"{emoji} **{finding.get('title', 'Issue')}**\n"
+                    summary_md += f"   - 文件: `{finding.get('file', 'unknown')}:{finding.get('line', '?')}`\n"
+                    summary_md += f"   - {finding.get('description', '')}\n\n"
+        
+        summary_path = Path(args.summary_output)
+        summary_path.write_text(summary_md, encoding='utf-8')
+        print(f"[SUCCESS] Summary saved to {summary_path}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"[ERROR] Execution failed: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

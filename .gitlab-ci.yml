@@ -59,7 +59,10 @@ mr_review:
   script:
     - copilot --version
     - |
-      if [ "${ENABLE_INLINE_REVIEW_COMMENTS:-false}" = "true" ]; then
+      if [ "${USE_ORCHESTRATED_REVIEW:-false}" = "true" ]; then
+        echo "[INFO] Using orchestrated review mode (task framework)"
+        bash scripts/mr_review_orchestrated.sh
+      elif [ "${ENABLE_INLINE_REVIEW_COMMENTS:-false}" = "true" ]; then
         echo "[INFO] Using inline comments mode"
         bash scripts/mr_review_with_inline_comments.sh
       else

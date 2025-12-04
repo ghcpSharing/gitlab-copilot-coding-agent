@@ -17,6 +17,25 @@ You are GitHub Copilot CLI acting as an expert code reviewer.
 {code_diff}
 ```
 
+**UNDERSTANDING THE DIFF FORMAT:**
+
+In git diff output:
+- Lines starting with `@@` show the line range: `@@ -old_start,old_count +new_start,new_count @@`
+- Lines starting with `+` are ADDED lines (use these line numbers)
+- Lines starting with `-` are DELETED lines
+- Lines with no prefix are UNCHANGED (context lines)
+
+Example:
+```diff
+@@ -10,5 +10,6 @@ def example():
+     existing_line
+-    old_line
++    new_line
++    another_new_line
+     more_context
+```
+Here, `new_line` is at line 11, and `another_new_line` is at line 12 in the NEW file.
+
 **Your Task:**
 Perform a comprehensive code review focusing on:
 
@@ -47,16 +66,23 @@ You MUST create a file named 'review_findings.json' with this EXACT structure:
   ]
 }
 
-**Important Rules:**
-1. Only include findings for ACTUAL issues found in the diff
-2. For each finding, specify the EXACT file path and line number from the diff
-3. Line numbers must be the NEW line numbers (after changes)
-4. Use severity levels appropriately:
+**CRITICAL RULES FOR LINE NUMBERS:**
+1. ONLY comment on lines that are ADDED (start with `+`) or MODIFIED in the diff
+2. Calculate the line number by:
+   - Finding the `@@ ... +new_start,count @@` marker
+   - Count from `new_start`, incrementing for each line that has `+` or no prefix
+   - The line number is the absolute line number in the NEW version of the file
+3. NEVER use line numbers from deleted lines (lines starting with `-`)
+4. If unsure about a line number, skip that finding rather than guess
+
+**Other Important Rules:**
+5. Only include findings for ACTUAL issues found in the diff
+6. Use severity levels appropriately:
    - critical: Security vulnerabilities, data loss risks
    - major: Bugs, significant performance issues
    - minor: Code quality, minor improvements
    - suggestion: Nice-to-have improvements
-5. Be specific and actionable in descriptions and suggestions
-6. If no issues found, use empty findings array: "findings": []
+7. Be specific and actionable in descriptions and suggestions
+8. If no issues found, use empty findings array: "findings": []
 
 Write the JSON file now. Do not output anything else.

@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+#
+# 编排式MR审查脚本
+# 支持大规模MR的智能拆分和并行审查
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/common.sh
+source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=scripts/load_prompt.sh
+source "${SCRIPT_DIR}/load_prompt.sh"
+
+cd "${REPO_ROOT}"
+
+require_env GITLAB_TOKEN
+require_env TARGET_REPO_URL
+require_env TARGET_BRANCH
+require_env SOURCE_BRANCH
+require_env TARGET_MR_IID
+require_env MR_TITLE
+require_env MR_DESCRIPTION
+
+echo "=========================================="
+echo "  🤖 Orchestrated MR Code Review"
+echo "=========================================="
+echo "[INFO] MR #${TARGET_MR_IID}: ${MR_TITLE}"
+echo "[INFO] ${SOURCE_BRANCH} → ${TARGET_BRANCH}"
+echo ""
+
+# 发布开始审查的评论
+echo "[INFO] Posting acknowledgment to MR..."
+NOTE_BODY=$(load_prompt "review_ack")
+
+if [ -n "${CI_PIPELINE_URL:-}" ]; then
+  NOTE_BODY="${NOTE_BODY}
+
+---
+- [🔗 Review Session](${CI_PIPELINE_URL})"
+fi
+
+API="${UPSTREAM_GITLAB_BASE_URL}/api/v4/projects/${TARGET_PROJECT_ID}"
+
+curl --fail --silent --show-error \
+  --request POST \
+  --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+  --data-urlencode "body=${NOTE_BODY}" \
+  "${API}/merge_requests/${TARGET_MR_IID}/notes" > /dev/null || {
+  echo "[WARN] Failed to post acknowledgment"
+}
+
+# 克隆仓库
+echo "[INFO] Cloning repository..."
+python3 <<'PY' > authed_repo_url.txt
+import os
+from urllib.parse import quote, urlparse, urlunparse
+
+token = os.environ["GITLAB_TOKEN"]
+repo = os.environ["TARGET_REPO_URL"]
+parsed = urlparse(repo)
+netloc = f"oauth2:{quote(token, safe='')}@{parsed.netloc}"
+authed = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+print(authed)
+PY
+
+AUTHED_URL="$(cat authed_repo_url.txt)"
+rm -rf repo-review
+GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-review >/dev/null 2>&1 || {
+  echo "[ERROR] Failed to clone repository" >&2
+  exit 1
+}
+
+cd repo-review
+
+echo "[INFO] Fetching branches..."
+git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {
+  echo "[ERROR] Failed to fetch branches" >&2
+  exit 1
+}
+
+# 检出源分支
+git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1 || {
+  echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
+  exit 1
+}
+
+# ==========================================
+# 第一阶段：生成任务计划
+# ==========================================
+echo ""
+echo "=== Phase 1: Generating Task Plan ==="
+echo ""
+
+python3 "${SCRIPT_DIR}/mr_review_planner.py" \
+  --mr-iid "${TARGET_MR_IID}" \
+  --mr-title "${MR_TITLE}" \
+  --base-branch "origin/${TARGET_BRANCH}" \
+  --head-branch "origin/${SOURCE_BRANCH}" \
+  --mr-description "${MR_DESCRIPTION}" \
+  --output task_plan.json || {
+  echo "[ERROR] Failed to generate task plan" >&2
+  exit 1
+}
+
+if [ ! -f task_plan.json ]; then
+  echo "[ERROR] task_plan.json not found" >&2
+  exit 1
+fi
+
+echo "[INFO] Task plan generated successfully"
+echo "[DEBUG] Task plan contents:"
+cat task_plan.json | head -50
+
+# 检查是否有任务需要执行
+SUBTASK_COUNT=$(python3 -c "import json; print(len(json.load(open('task_plan.json'))['subtasks']))")
+echo "[INFO] Total subtasks to execute: ${SUBTASK_COUNT}"
+
+if [ "$SUBTASK_COUNT" -eq 0 ]; then
+  echo "[WARN] No review tasks generated. Exiting."
+  
+  NO_TASK_BODY="## 🤖 代码审查结果
+
+未生成审查任务。可能原因：
+- 所有变更都在排除列表中（如 node_modules, vendor 等）
+- 变更文件为空
+
+**MR信息**：
+- 源分支：${SOURCE_BRANCH}
+- 目标分支：${TARGET_BRANCH}
+"
+  
+  curl --silent --show-error --fail \
+    --request POST \
+    --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+    --data-urlencode "body=${NO_TASK_BODY}" \
+    "${API}/merge_requests/${TARGET_MR_IID}/notes" > /dev/null || true
+  
+  exit 0
+fi
+
+# ==========================================
+# 第二阶段：执行任务
+# ==========================================
+echo ""
+echo "=== Phase 2: Executing Review Tasks ==="
+echo ""
+
+python3 "${SCRIPT_DIR}/mr_review_executor.py" \
+  --plan task_plan.json \
+  --workspace "$(pwd)" \
+  --output review_results.json \
+  --summary-output review_summary.md || {
+  
+  EXIT_CODE=$?
+  echo "[ERROR] Task execution failed with code ${EXIT_CODE}" >&2
+  
+  # 即使失败也尝试发布部分结果
+  if [ -f review_summary.md ]; then
+    echo "[INFO] Posting partial results..."
+    
+    PARTIAL_BODY="## ⚠️ 代码审查部分失败
+
+审查过程中遇到错误，以下是部分结果：
+
+$(cat review_summary.md)
+
+---
+请检查 CI/CD 日志获取详细错误信息。
+"
+    
+    curl --silent --show-error --fail \
+      --request POST \
+      --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+      --data-urlencode "body=${PARTIAL_BODY}" \
+      "${API}/merge_requests/${TARGET_MR_IID}/notes" > /dev/null || true
+  fi
+  
+  exit $EXIT_CODE
+}
+
+echo "[INFO] Review execution completed successfully"
+
+# ==========================================
+# 第三阶段：发布结果
+# ==========================================
+echo ""
+echo "=== Phase 3: Publishing Results ==="
+echo ""
+
+if [ ! -f review_summary.md ]; then
+  echo "[ERROR] review_summary.md not found" >&2
+  exit 1
+fi
+
+echo "[INFO] Posting review summary to MR..."
+
+REVIEW_BODY=$(cat review_summary.md)
+
+if [ -n "${CI_PIPELINE_URL:-}" ]; then
+  REVIEW_BODY="${REVIEW_BODY}
+
+---
+- [🔗 Review Session](${CI_PIPELINE_URL})"
+fi
+
+# 保存到临时文件以便处理特殊字符
+echo "$REVIEW_BODY" > review_comment.txt
+
+curl --silent --show-error --fail \
+  --request POST \
+  --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+  --data-urlencode "body@review_comment.txt" \
+  "${API}/merge_requests/${TARGET_MR_IID}/notes" > /dev/null || {
+  echo "[ERROR] Failed to post review comment" >&2
+  exit 1
+}
+
+echo "[SUCCESS] Review comment posted successfully"
+
+# ==========================================
+# 第四阶段（可选）：发布inline comments
+# ==========================================
+if [ "${ENABLE_INLINE_REVIEW_COMMENTS:-false}" = "true" ] && [ -f review_results.json ]; then
+  echo ""
+  echo "=== Phase 4: Posting Inline Comments ==="
+  echo ""
+  
+  # 获取commit SHAs
+  export BASE_SHA=$(git rev-parse "origin/${TARGET_BRANCH}")
+  export HEAD_SHA=$(git rev-parse "origin/${SOURCE_BRANCH}")
+  export START_SHA=$(git merge-base "origin/${TARGET_BRANCH}" "origin/${SOURCE_BRANCH}")
+  
+  echo "[DEBUG] BASE_SHA=${BASE_SHA}"
+  echo "[DEBUG] HEAD_SHA=${HEAD_SHA}"
+  echo "[DEBUG] START_SHA=${START_SHA}"
+  
+  # 使用Python脚本发布inline comments
+  python3 <<'PYSCRIPT'
+import json
+import os
+import sys
+import subprocess
+from pathlib import Path
+
+# 读取结果
+results = json.loads(Path('review_results.json').read_text())
+all_findings = []
+
+# 提取所有findings
+for task_type, type_results in results.get('results_by_type', {}).items():
+    if 'findings' in type_results:
+        all_findings.extend(type_results['findings'])
+
+print(f"[INFO] Found {len(all_findings)} total findings")
+
+# 环境变量
+api_url = os.environ["API"]
+token = os.environ["GITLAB_TOKEN"]
+mr_iid = os.environ["TARGET_MR_IID"]
+base_sha = os.environ["BASE_SHA"]
+start_sha = os.environ["START_SHA"]
+head_sha = os.environ["HEAD_SHA"]
+
+# 只发布critical和major的inline comments
+high_priority = [f for f in all_findings if f.get('severity') in ['critical', 'major']]
+print(f"[INFO] Posting {len(high_priority)} high-priority inline comments")
+
+posted_count = 0
+for finding in high_priority[:50]:  # 最多50个inline comments
+    file_path = finding.get('file', '')
+    line = finding.get('line', 0)
+    
+    if not file_path or line <= 0:
+        continue
+    
+    severity_emoji = {'critical': '🔴', 'major': '🟠'}.get(finding['severity'], '⚠️')
+    comment_body = f"""{severity_emoji} **{finding['severity'].upper()}**: {finding.get('title', 'Issue')}
+
+**Issue**: {finding.get('description', '')}
+
+**Suggestion**: {finding.get('suggestion', '')}
+
+---
+_Category: {finding.get('category', 'general')}_
+"""
+    
+    # 构建API请求
+    discussions_url = f"{api_url}/merge_requests/{mr_iid}/discussions"
+    cmd = [
+        "curl", "--silent", "--show-error",
+        "--request", "POST",
+        "--header", f"PRIVATE-TOKEN: {token}",
+        "--data-urlencode", f"body={comment_body}",
+        "--data-urlencode", f"position[base_sha]={base_sha}",
+        "--data-urlencode", f"position[start_sha]={start_sha}",
+        "--data-urlencode", f"position[head_sha]={head_sha}",
+        "--data-urlencode", "position[position_type]=text",
+        "--data-urlencode", f"position[new_path]={file_path}",
+        "--data-urlencode", f"position[new_line]={line}",
+        discussions_url
+    ]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        if result.returncode == 0:
+            posted_count += 1
+            print(f"[INFO] Posted inline comment on {file_path}:{line}")
+        else:
+            print(f"[WARN] Failed to post on {file_path}:{line}")
+    except Exception as e:
+        print(f"[WARN] Error posting inline comment: {e}")
+
+print(f"[INFO] Posted {posted_count} inline comments")
+PYSCRIPT
+  
+  echo "[INFO] Inline comments posted"
+fi
+
+cd "${REPO_ROOT}"
+
+echo ""
+echo "=========================================="
+echo "  ✅ Review Complete!"
+echo "=========================================="
+echo ""

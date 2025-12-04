@@ -211,13 +211,23 @@ def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
 
     action = (mr.get("action") or "").lower()
     allowed_actions = {"open", "reopen", "update", "edited"}
+    
+    # Debug log for MR reviewer event
+    logger.info("MR reviewer event: action='%s', changes_keys=%s", action, list(changes.keys()))
+    
     if action not in allowed_actions:
-        logger.debug("Ignoring action '%s' (allowed=%s)", action, allowed_actions)
+        logger.info("Ignoring MR action '%s' (allowed=%s)", action, allowed_actions)
         raise ValueError(f"Ignoring unsupported MR action '{action}'")
 
     # Check if Copilot is assigned as reviewer in the changes
     reviewers_change = changes.get("reviewers") or {}
     current_reviewers = reviewers_change.get("current") or []
+    
+    # Also check the MR's reviewer_ids directly as fallback
+    mr_reviewer_ids = mr.get("reviewer_ids") or []
+    
+    logger.info("MR reviewer check: reviewers_change=%s, current_reviewers=%s, mr_reviewer_ids=%s", 
+                reviewers_change, current_reviewers, mr_reviewer_ids)
 
     is_copilot_reviewer = False
     if current_reviewers and len(current_reviewers) > 0:

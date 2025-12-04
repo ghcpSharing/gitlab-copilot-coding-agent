@@ -163,6 +163,11 @@ else
 fi
 
 echo "[INFO] Checking for review_findings.json..."
+
+# Debug: list all files created by Copilot
+echo "[DEBUG] Files in current directory after Copilot execution:"
+ls -la | head -20
+
 if [ ! -f review_findings.json ]; then
   echo "[WARN] review_findings.json not found, will post general comment only"
 
@@ -196,6 +201,10 @@ ${REVIEW_SUMMARY}"
 fi
 
 echo "[INFO] Parsing review findings and posting inline comments..."
+
+# Debug: show first few lines of the JSON file
+echo "[DEBUG] First 50 lines of review_findings.json:"
+head -50 review_findings.json
 
 # Process findings and post inline comments
 python3 <<'PYSCRIPT'
