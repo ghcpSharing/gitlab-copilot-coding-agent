@@ -1,9 +1,11 @@
 # Environment configuration
 .env
+.github
 *.env.local
 .env.*
 !.env.example
-
+refers/
+thinking/
 # Python cache and build output
 __pycache__/
 *.py[cod]
