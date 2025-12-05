@@ -9,6 +9,27 @@ workflow:
 
 stages:
   - implement
+  - test
+
+# 测试 project_understanding 模块（仅在 multi-agents 分支手动触发）
+test_project_understanding:
+  stage: test
+  tags:
+    - k8s
+    - copilot
+  rules:
+    - if: $CI_COMMIT_BRANCH == "multi-agents"
+      when: manual
+    - if: $TRIGGER_TYPE == "test_project_understanding"
+  image: satomic/copilot-cli:latest
+  script:
+    - copilot --version
+    - cd index_repo/src
+    - python -m project_understanding.cli --no-cache -v
+    - cat .copilot/context.md
+  artifacts:
+    paths:
+      - index_repo/src/.copilot/
 
 # Job for issue assignee workflow (optimized single job)
 issue_workflow:
