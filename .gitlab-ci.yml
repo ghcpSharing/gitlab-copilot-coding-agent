@@ -11,15 +11,13 @@ stages:
   - implement
   - test
 
-# 测试 project_understanding 模块（仅在 multi-agents 分支手动触发）
+# 测试 project_understanding 模块（通过 TRIGGER_TYPE 触发）
 test_project_understanding:
   stage: test
   tags:
     - k8s
     - copilot
   rules:
-    - if: $CI_COMMIT_BRANCH == "multi-agents"
-      when: manual
     - if: $TRIGGER_TYPE == "test_project_understanding"
   image: satomic/copilot-cli:latest
   script:
