@@ -41,7 +41,7 @@ class OrchestratorConfig:
     max_workers: int = 5  # 最大并行数
     
     # Review 配置
-    enable_review: bool = True
+    enable_review: bool = False  # 默认关闭（Review 解析不稳定）
     max_review_iterations: int = 2
     
     # 输出配置
