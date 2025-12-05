@@ -17,10 +17,10 @@
 
 **مستودع الأمثلة**
 - مستودع GitLab التوضيحي العام [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
-- المسألة: [A Webhook Receiver Application](https://gitlab.com/agentic-devops/app-repo-01/-/issues/21)
-- طلب الدمج: [A Webhook Receiver Application (#21)](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26)
-- تحديث طلب الدمج بالتعليق: [@copilot-agent Change readme to Spanish](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930260370)
-- مراجعة الشفرة: [Assign Copilot as MR Reviewer](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930279091)
+- المسألة: [تطبيق استقبال Webhook](https://gitlab.com/agentic-devops/app-repo-01/-/issues/23)
+- طلب الدمج: [تطبيق استقبال Webhook (#23)](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/28)
+- تحديث طلب الدمج بالتعليق: [@copilot-agent تعديل ملف readme إلى العربية](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/28#note_2935174921)
+- مراجعة الشفرة: [تعيين Copilot كمراجع MR](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930279091)
 
 ## 🏗️ البنية المعمارية
 
