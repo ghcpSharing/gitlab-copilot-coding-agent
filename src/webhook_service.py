@@ -98,6 +98,7 @@ class Settings:
         self.copilot_agent_commit_email = os.getenv("COPILOT_AGENT_COMMIT_EMAIL", "copilot@github.com")
         self.enable_inline_review_comments = os.getenv("ENABLE_INLINE_REVIEW_COMMENTS", "true").lower() in {"true", "1", "yes", "on"}
         self.use_orchestrated_review = os.getenv("USE_ORCHESTRATED_REVIEW", "false").lower() in {"true", "1", "yes", "on"}
+        self.enable_project_understanding = os.getenv("ENABLE_PROJECT_UNDERSTANDING", "false").lower() in {"true", "1", "yes", "on"}
         self.copilot_language = os.getenv("COPILOT_LANGUAGE", "en")
 
     @staticmethod
@@ -280,6 +281,7 @@ def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "COPILOT_AGENT_COMMIT_EMAIL": settings.copilot_agent_commit_email,
         "ENABLE_INLINE_REVIEW_COMMENTS": "true" if settings.enable_inline_review_comments else "false",
         "USE_ORCHESTRATED_REVIEW": "true" if settings.use_orchestrated_review else "false",
+        "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
         "COPILOT_LANGUAGE": settings.copilot_language,
     }
 
