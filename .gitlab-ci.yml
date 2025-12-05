@@ -75,9 +75,37 @@ mr_review:
   rules:
     - if: $TRIGGER_TYPE == "mr_reviewer"
   image: satomic/copilot-cli:latest
+  variables:
+    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-false}"
   script:
     - copilot --version
     - |
+      # 运行项目理解分析（如果启用）
+      if [ "${ENABLE_PROJECT_UNDERSTANDING}" = "true" ]; then
+        echo "[INFO] Running project understanding analysis on target repo..."
+        # 先克隆目标仓库
+        git clone "https://oauth2:${UPSTREAM_GITLAB_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git" repo-b
+        cd repo-b
+        git checkout "${TARGET_BRANCH:-main}"
+        cd ..
+        # 从 index_repo/src 运行项目理解分析，目标是 repo-b
+        cd index_repo/src
+        python3 -m project_understanding.cli ../../repo-b --output-dir ../../repo-b/.copilot --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
+        cd ../..
+        # 通过文件传递路径，而不是 export（避免跨 shell block 丢失）
+        echo "repo-b/.copilot/project_context.md" > .project_context_path
+        # 标记 repo-b 已存在，跳过 mr_review.sh 中的重新克隆
+        export SKIP_REPO_CLONE=true
+      fi
+      
+      # 检查是否有 project context 路径文件
+      if [ -f ".project_context_path" ]; then
+        export PROJECT_CONTEXT_FILE=$(cat .project_context_path)
+        export SKIP_REPO_CLONE=true
+        echo "[INFO] Using project context from: ${PROJECT_CONTEXT_FILE}"
+      fi
+      
+      # 执行 MR review
       if [ "${USE_ORCHESTRATED_REVIEW:-false}" = "true" ]; then
         echo "[INFO] Using orchestrated review mode (task framework)"
         bash scripts/mr_review_orchestrated.sh
@@ -97,3 +125,4 @@ mr_review:
       - repo-b/review_results.json
       - repo-b/review_summary.md
       - repo-b/review_comment.txt
+      - repo-b/.copilot/
