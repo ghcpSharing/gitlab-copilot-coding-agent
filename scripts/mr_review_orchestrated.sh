@@ -229,6 +229,10 @@ if [ "${ENABLE_INLINE_REVIEW_COMMENTS:-false}" = "true" ] && [ -f review_results
   echo "=== Phase 4: Posting Inline Comments ==="
   echo ""
   
+  # 生成完整的diff文件（用于提取代码上下文）
+  git diff "origin/${TARGET_BRANCH}...origin/${SOURCE_BRANCH}" > full_diff.txt
+  echo "[INFO] Generated full_diff.txt ($(wc -l < full_diff.txt) lines)"
+  
   # 获取commit SHAs并导出环境变量供Python使用
   export BASE_SHA=$(git rev-parse "origin/${TARGET_BRANCH}")
   export HEAD_SHA=$(git rev-parse "origin/${SOURCE_BRANCH}")
@@ -270,7 +274,7 @@ head_sha = os.environ["HEAD_SHA"]
 lang = os.environ.get("COPILOT_LANGUAGE", "zh")
 
 # 读取 diff 内容以获取代码上下文
-with open('../full_diff.txt', 'r', encoding='utf-8') as f:
+with open('full_diff.txt', 'r', encoding='utf-8') as f:
     diff_text = f.read()
 
 # 中英文模板
