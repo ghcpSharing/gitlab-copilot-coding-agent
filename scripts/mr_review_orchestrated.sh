@@ -198,7 +198,38 @@ fi
 
 echo "[INFO] Posting review summary to MR..."
 
-REVIEW_BODY=$(cat review_summary.md)
+# 只发布统计信息，不包含详细findings（已通过inline comments发布）
+REVIEW_STATS=$(python3 <<'PYSTAT'
+import json
+from pathlib import Path
+
+results = json.loads(Path('review_results.json').read_text())
+review_data = results.get('results_by_type', {}).get('review', {})
+
+stats = review_data.get('statistics', {})
+print(f"""### 📊 审查统计
+
+**总体建议**: **{review_data.get('recommendation', 'NEEDS_DISCUSSION')}**
+
+**发现的问题**:
+- 🔴 Critical: {stats.get('critical', 0)}
+- 🟠 Major: {stats.get('major', 0)}
+- 🟡 Minor: {stats.get('minor', 0)}
+- 💡 Suggestions: {stats.get('suggestion', 0)}
+
+**审查覆盖**:
+- 📁 审查文件数: {review_data.get('files_reviewed', 0)}
+- ✅ 完成的子任务: {review_data.get('subtasks_completed', 0)}
+- ❌ 失败的子任务: {review_data.get('subtasks_failed', 0)}
+
+> 💡 详细的审查发现已通过内联评论发布到相应代码行，或查看 CI artifacts 中的完整报告。
+""")
+PYSTAT
+)
+
+REVIEW_BODY="## 🤖 Copilot 代码审查报告
+
+${REVIEW_STATS}"
 
 if [ -n "${CI_PIPELINE_URL:-}" ]; then
   REVIEW_BODY="${REVIEW_BODY}
