@@ -65,19 +65,18 @@ PY
 
 AUTHED_URL="$(cat authed_repo_url.txt)"
 
-# 检查是否已有 repo-b（来自项目理解预分析）
-if [ -d "repo-b" ] && [ -n "${SKIP_REPO_CLONE:-}" ]; then
-  echo "[INFO] Using existing repo-b directory (project understanding enabled)"
-  # 直接使用 repo-b，不需要复制
+# 检查是否已有预克隆的仓库（来自项目理解预分析）
+if [ -d "repo-review" ] && [ -n "${SKIP_REPO_CLONE:-}" ]; then
+  echo "[INFO] Using existing repo-review directory (project understanding enabled)"
 else
-  rm -rf repo-b
-  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-b >/dev/null 2>&1 || {
+  rm -rf repo-review
+  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-review >/dev/null 2>&1 || {
     echo "[ERROR] Failed to clone repository" >&2
     exit 1
   }
 fi
 
-cd repo-b
+cd repo-review
 
 # 项目理解上下文已经在 .copilot/project_context.md（如果启用）
 if [ -f ".copilot/project_context.md" ]; then
