@@ -80,18 +80,15 @@ mr_review:
   script:
     - copilot --version
     - |
+      # 使用项目ID作为目录名（避免不同项目冲突）
+      REPO_DIR="repo-${TARGET_PROJECT_ID}"
+      echo "[INFO] Using repository directory: ${REPO_DIR}"
+      
       # 运行项目理解分析（如果启用）
       if [ "${ENABLE_PROJECT_UNDERSTANDING}" = "true" ]; then
         echo "[INFO] Running project understanding analysis on target repo..."
         
-        # 根据 review 模式确定目录名
-        if [ "${USE_ORCHESTRATED_REVIEW:-false}" = "true" ]; then
-          REPO_DIR="repo-review"
-        else
-          REPO_DIR="repo-b"
-        fi
-        
-        # 克隆目标仓库
+        # 克隆目标仓库到项目特定目录
         git clone "https://oauth2:${UPSTREAM_GITLAB_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git" "${REPO_DIR}"
         cd "${REPO_DIR}"
         git checkout "${TARGET_BRANCH:-main}"
@@ -102,10 +99,12 @@ mr_review:
         python3 -m project_understanding.cli "../../${REPO_DIR}" --output-dir "../../${REPO_DIR}/.copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
         cd ../..
         
-        # 标记仓库已存在，跳过后续脚本中的重新克隆
-        export SKIP_REPO_CLONE=true
         echo "[INFO] Project understanding completed for ${REPO_DIR}"
       fi
+      
+      # 传递目录名给 review 脚本
+      export REPO_DIR="${REPO_DIR}"
+      export SKIP_REPO_CLONE="${ENABLE_PROJECT_UNDERSTANDING}"
       
 
       
@@ -123,14 +122,12 @@ mr_review:
   artifacts:
     when: always
     paths:
-      - repo-b/review_raw.txt
-      - repo-b/review_summary.txt
-      - repo-b/review_findings.json
-      - repo-b/review_comment.txt
-      - repo-b/.copilot/
-      - repo-review/task_plan.json
-      - repo-review/review_results.json
-      - repo-review/review_summary.md
-      - repo-review/full_diff.txt
-      - repo-review/review_comment.txt
-      - repo-review/.copilot/
+      - repo-*/task_plan.json
+      - repo-*/review_results.json
+      - repo-*/review_summary.md
+      - repo-*/full_diff.txt
+      - repo-*/review_comment.txt
+      - repo-*/review_raw.txt
+      - repo-*/review_summary.txt
+      - repo-*/review_findings.json
+      - repo-*/.copilot/

@@ -65,20 +65,24 @@ PY
 
 AUTHED_URL="$(cat authed_repo_url.txt)"
 
-# Check if repo-b already exists (e.g., from project understanding pre-analysis)
-if [ -d repo-b ] && [ -n "${SKIP_REPO_CLONE:-}" ]; then
-  echo "[INFO] Using existing repo-b directory (SKIP_REPO_CLONE is set)"
+# 使用环境变量指定的目录名（默认 repo-b）
+REPO_DIR="${REPO_DIR:-repo-b}"
+echo "[INFO] Using repository directory: ${REPO_DIR}"
+
+# Check if directory already exists (e.g., from project understanding pre-analysis)
+if [ -d "${REPO_DIR}" ] && [ "${SKIP_REPO_CLONE}" = "true" ]; then
+  echo "[INFO] Using existing ${REPO_DIR} directory (SKIP_REPO_CLONE is set)"
 else
-  rm -rf repo-b
-  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-b >/dev/null 2>&1
+  rm -rf "${REPO_DIR}"
+  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" "${REPO_DIR}" >/dev/null 2>&1
 fi
 
-if [ ! -d repo-b ]; then
+if [ ! -d "${REPO_DIR}" ]; then
   echo "[ERROR] Failed to clone repository" >&2
   exit 1
 fi
 
-cd repo-b
+cd "${REPO_DIR}"
 
 echo "[INFO] Fetching branches..."
 git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {

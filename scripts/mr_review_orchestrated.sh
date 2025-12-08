@@ -65,18 +65,22 @@ PY
 
 AUTHED_URL="$(cat authed_repo_url.txt)"
 
+# 使用环境变量指定的目录名（默认 repo-b）
+REPO_DIR="${REPO_DIR:-repo-b}"
+echo "[INFO] Using repository directory: ${REPO_DIR}"
+
 # 检查是否已有预克隆的仓库（来自项目理解预分析）
-if [ -d "repo-review" ] && [ -n "${SKIP_REPO_CLONE:-}" ]; then
-  echo "[INFO] Using existing repo-review directory (project understanding enabled)"
+if [ -d "${REPO_DIR}" ] && [ "${SKIP_REPO_CLONE}" = "true" ]; then
+  echo "[INFO] Using existing ${REPO_DIR} directory (project understanding enabled)"
 else
-  rm -rf repo-review
-  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-review >/dev/null 2>&1 || {
+  rm -rf "${REPO_DIR}"
+  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" "${REPO_DIR}" >/dev/null 2>&1 || {
     echo "[ERROR] Failed to clone repository" >&2
     exit 1
   }
 fi
 
-cd repo-review
+cd "${REPO_DIR}"
 
 # 项目理解上下文已经在 .copilot/project_context.md（如果启用）
 if [ -f ".copilot/project_context.md" ]; then
