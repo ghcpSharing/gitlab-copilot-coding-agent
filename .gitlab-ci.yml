@@ -94,40 +94,28 @@ mr_review:
         # 克隆目标仓库到项目特定目录
         git clone "https://oauth2:${UPSTREAM_GITLAB_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git" "${REPO_DIR}"
         cd "${REPO_DIR}"
-        CURRENT_COMMIT=$(git rev-parse HEAD)
+        export CI_COMMIT_SHA=$(git rev-parse HEAD)
+        export CI_COMMIT_BEFORE_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "0000000000000000000000000000000000000000")
         git checkout "${TARGET_BRANCH:-main}"
         cd ..
         
-        # 尝试从 Azure Blob Storage 下载缓存
+        # 使用新的智能上下文管理器（Phase 6 集成）
         if [ -n "${AZURE_STORAGE_CONNECTION_STRING}" ]; then
-          echo "[INFO] Checking Azure Blob Storage cache..."
-          python3 scripts/blob_cache.py download \
-            --connection-string "${AZURE_STORAGE_CONNECTION_STRING}" \
-            --project-id "${TARGET_PROJECT_ID}" \
-            --branch "${TARGET_BRANCH:-main}" \
-            --commit "${CURRENT_COMMIT}" \
-            --local-dir "${REPO_DIR}/.copilot" && {
-            echo "[INFO] Using cached project context from Azure Blob Storage"
-            export SKIP_PROJECT_ANALYSIS=true
-          } || echo "[INFO] No cache found, will generate new context"
-        fi
-        
-        # 如果没有缓存，运行项目理解分析
-        if [ "${SKIP_PROJECT_ANALYSIS}" != "true" ]; then
+          echo "[INFO] Using intelligent context manager with 5-level cache strategy..."
+          bash scripts/ci_context_manager.sh || {
+            echo "[WARN] Context manager failed, falling back to legacy mode"
+            
+            # Fallback: 旧版简单缓存逻辑
+            cd index_repo/src
+            python3 -m project_understanding.cli "../../${REPO_DIR}" --output-dir "../../${REPO_DIR}/.copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
+            cd ../..
+          }
+        else
+          # 无 Azure 连接时，直接执行完整分析
+          echo "[INFO] Azure Blob Storage not configured, running full analysis..."
           cd index_repo/src
           python3 -m project_understanding.cli "../../${REPO_DIR}" --output-dir "../../${REPO_DIR}/.copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
           cd ../..
-          
-          # 上传到 Azure Blob Storage
-          if [ -n "${AZURE_STORAGE_CONNECTION_STRING}" ] && [ -d "${REPO_DIR}/.copilot" ]; then
-            echo "[INFO] Uploading project context to Azure Blob Storage..."
-            python3 scripts/blob_cache.py upload \
-              --connection-string "${AZURE_STORAGE_CONNECTION_STRING}" \
-              --project-id "${TARGET_PROJECT_ID}" \
-              --branch "${TARGET_BRANCH:-main}" \
-              --commit "${CURRENT_COMMIT}" \
-              --local-dir "${REPO_DIR}/.copilot" || echo "[WARN] Failed to upload cache"
-          fi
         fi
         
         echo "[INFO] Project understanding completed for ${REPO_DIR}"

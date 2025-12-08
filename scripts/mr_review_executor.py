@@ -64,12 +64,33 @@ def execute_review_with_copilot(
     
     prompt_template = prompt_template_path.read_text(encoding='utf-8')
     
-    # 检查是否有项目理解上下文
+    # 检查是否有项目理解上下文（支持新旧两种结构）
     project_context = ""
-    context_file = workspace.parent / ".copilot" / "project_context.md"
-    if context_file.exists():
-        print(f"[INFO] Loading project context from {context_file}")
-        project_context = context_file.read_text(encoding='utf-8')
+    
+    # 优先使用新结构：.copilot/project_context.md
+    context_file_new = workspace.parent / ".copilot" / "project_context.md"
+    # 兼容旧结构：.copilot/context.md
+    context_file_old = workspace.parent / ".copilot" / "context.md"
+    
+    if context_file_new.exists():
+        print(f"[INFO] Loading project context from {context_file_new}")
+        project_context = context_file_new.read_text(encoding='utf-8')
+    elif context_file_old.exists():
+        print(f"[INFO] Loading project context from {context_file_old} (legacy format)")
+        project_context = context_file_old.read_text(encoding='utf-8')
+    else:
+        # 检查 metadata.json（新 blob storage 结构）
+        metadata_file = workspace.parent / ".copilot" / "metadata.json"
+        if metadata_file.exists():
+            print(f"[INFO] Found metadata.json, loading from blob storage structure")
+            # 尝试读取各个模块的输出
+            copilot_dir = workspace.parent / ".copilot"
+            context_parts = []
+            for module_file in copilot_dir.glob("*.md"):
+                if module_file.name != "metadata.json":
+                    context_parts.append(module_file.read_text(encoding='utf-8'))
+            if context_parts:
+                project_context = "\n\n---\n\n".join(context_parts)
     
     # 替换变量
     prompt = prompt_template.replace('{code_diff}', diff_content)
