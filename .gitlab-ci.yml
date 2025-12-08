@@ -78,7 +78,7 @@ mr_review:
     - if: $TRIGGER_TYPE == "mr_reviewer"
   image: satomic/copilot-cli:latest
   variables:
-    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-false}"
+    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
     AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
   script:
     - copilot --version
@@ -91,12 +91,34 @@ mr_review:
       if [ "${ENABLE_PROJECT_UNDERSTANDING}" = "true" ]; then
         echo "[INFO] Running project understanding analysis on target repo..."
         
-        # 克隆目标仓库到项目特定目录
-        git clone "https://oauth2:${UPSTREAM_GITLAB_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git" "${REPO_DIR}"
+        # 调试：打印关键变量
+        echo "[DEBUG] UPSTREAM_PROJECT_PATH: ${UPSTREAM_PROJECT_PATH}"
+        echo "[DEBUG] UPSTREAM_GITLAB_BASE_URL: ${UPSTREAM_GITLAB_BASE_URL}"
+        echo "[DEBUG] TARGET_PROJECT_ID: ${TARGET_PROJECT_ID}"
+        echo "[DEBUG] TARGET_BRANCH: ${TARGET_BRANCH}"
+        
+        # 检查必要变量
+        if [ -z "${UPSTREAM_PROJECT_PATH}" ]; then
+          echo "[ERROR] UPSTREAM_PROJECT_PATH is not set, skipping project understanding"
+          export ENABLE_PROJECT_UNDERSTANDING=false
+        else
+          # 克隆目标仓库到项目特定目录
+          CLONE_URL="https://oauth2:${UPSTREAM_GITLAB_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git"
+          echo "[INFO] Cloning from: https://oauth2:***@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git"
+          
+          git clone "${CLONE_URL}" "${REPO_DIR}" || {
+            echo "[ERROR] Failed to clone repository, skipping project understanding"
+            export ENABLE_PROJECT_UNDERSTANDING=false
+          }
+        fi
+      fi
+      
+      # 如果克隆成功，继续项目理解分析
+      if [ "${ENABLE_PROJECT_UNDERSTANDING}" = "true" ] && [ -d "${REPO_DIR}" ]; then
         cd "${REPO_DIR}"
         export CI_COMMIT_SHA=$(git rev-parse HEAD)
         export CI_COMMIT_BEFORE_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "0000000000000000000000000000000000000000")
-        git checkout "${TARGET_BRANCH:-main}"
+        git checkout "${TARGET_BRANCH:-main}" 2>/dev/null || echo "[WARN] Could not checkout ${TARGET_BRANCH:-main}"
         cd ..
         
         # 使用新的智能上下文管理器（Phase 6 集成）
