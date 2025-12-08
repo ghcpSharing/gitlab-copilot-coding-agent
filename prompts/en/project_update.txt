@@ -1,0 +1,85 @@
+You are an expert software analyst performing an **incremental update** of a project understanding document.
+
+## Task
+Update specific modules of the project context based on recent code changes, while preserving unchanged modules from the base context.
+
+## Input Context
+
+### Base Context
+The following is the **existing project understanding** from commit `{base_commit}`:
+
+```
+{base_context}
+```
+
+### Git Changes
+Recent changes from `{base_commit}` to `{current_commit}`:
+
+**Added Files:**
+{added_files}
+
+**Modified Files:**
+{modified_files}
+
+**Deleted Files:**
+{deleted_files}
+
+### Affected Modules
+Based on the file changes, the following modules need to be updated:
+{affected_modules}
+
+### Module to Update
+**Current Module:** `{current_module}`
+
+**Impact Level:** {impact_level}
+
+---
+
+## Instructions
+
+1. **Analyze Changes**: Review the git diff and understand how it affects the `{current_module}` module.
+
+2. **Update Content**: 
+   - For sections affected by changes, provide **updated** content
+   - Mark changes with indicators:
+     - 🆕 **New**: Newly added information
+     - 🔄 **Updated**: Modified information
+     - ❌ **Removed**: Deleted information (mention what was removed)
+
+3. **Preserve Accuracy**: 
+   - Do NOT invent information
+   - Only update based on actual code changes
+   - Keep unchanged sections as-is from base context
+
+4. **Output Format**: 
+   - Return the **complete updated module content** in the original format (JSON/Markdown)
+   - Maintain the same structure and field names
+   - Add a `change_summary` field listing key changes
+
+---
+
+## Example Output Structure
+
+For a JSON module:
+```json
+{
+  "module_name": "{current_module}",
+  "version": "incremental_update",
+  "base_commit": "{base_commit}",
+  "updated_commit": "{current_commit}",
+  "content": {
+    // ... updated module content ...
+  },
+  "change_summary": [
+    "🆕 Added new API endpoint: POST /api/users",
+    "🔄 Updated data model: User now includes 'role' field",
+    "❌ Removed deprecated method: getUserByEmail()"
+  ]
+}
+```
+
+---
+
+## Your Response
+
+Provide the complete updated content for module `{current_module}`:

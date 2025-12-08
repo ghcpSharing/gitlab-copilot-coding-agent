@@ -430,3 +430,249 @@ class Orchestrator:
         
         with open(cache_file, 'w') as f:
             json.dump(meta, f, indent=2)
+    
+    def run_incremental_update(
+        self, 
+        base_context_dir: Path, 
+        changes_json_path: Path,
+        update_modules: Optional[list[str]] = None
+    ) -> ProjectContext:
+        """
+        执行增量更新
+        
+        Args:
+            base_context_dir: 基准上下文目录（包含完整的 .copilot 内容）
+            changes_json_path: changes.json 文件路径（来自 detect_changes.py）
+            update_modules: 要更新的模块列表（None = 自动检测）
+            
+        Returns:
+            更新后的 ProjectContext
+        """
+        import json
+        
+        logger.info("Starting incremental update...")
+        
+        # 1. 加载基准上下文
+        base_context_file = base_context_dir / self.config.output_file
+        if not base_context_file.exists():
+            raise FileNotFoundError(f"Base context not found: {base_context_file}")
+        
+        base_context_text = base_context_file.read_text(encoding='utf-8')
+        logger.info(f"Loaded base context from {base_context_file}")
+        
+        # 2. 加载变更信息
+        with open(changes_json_path, 'r') as f:
+            changes = json.load(f)
+        
+        base_commit = changes['base_commit']
+        current_commit = changes['current_commit']
+        affected_modules = set(changes['affected_modules'])
+        
+        logger.info(f"Detected changes: {base_commit[:8]}..{current_commit[:8]}")
+        logger.info(f"Affected modules: {', '.join(affected_modules)}")
+        
+        # 3. 确定要更新的模块
+        if update_modules is None:
+            update_modules = list(affected_modules)
+        else:
+            # 确保请求的模块都在受影响列表中
+            update_modules = [m for m in update_modules if m in affected_modules]
+        
+        if not update_modules:
+            logger.warning("No modules to update")
+            return self._create_context_from_base(base_context_text, base_commit, current_commit)
+        
+        logger.info(f"Will update modules: {', '.join(update_modules)}")
+        
+        # 4. 扫描项目（获取最新代码结构）
+        scan_result = scan_project(self.workspace)
+        
+        # 5. 为每个待更新模块执行增量分析
+        module_outputs = {}
+        
+        # 模块名到 Agent 的映射
+        module_to_agent = {
+            "tech_stack": TechStackAgent,
+            "data_model": DataModelAgent,
+            "domain": DomainAgent,
+            "security": SecurityAgent,
+            "api": APIAgent
+        }
+        
+        for module in update_modules:
+            if module not in module_to_agent:
+                logger.warning(f"Unknown module: {module}, skipping")
+                continue
+            
+            logger.info(f"Updating module: {module}")
+            
+            agent_class = module_to_agent[module]
+            agent = agent_class(
+                workspace=self.workspace,
+                config=self._create_agent_config(agent_class.role),
+                copilot=self.copilot
+            )
+            
+            # 使用增量更新 prompt
+            output = self._run_incremental_agent(
+                agent=agent,
+                scan=scan_result,
+                base_context=base_context_text,
+                changes=changes,
+                module=module
+            )
+            
+            module_outputs[module] = output
+        
+        # 6. 合并：未更新的模块复用 base_context，更新的模块使用新输出
+        final_context = self._merge_contexts(
+            base_context=base_context_text,
+            updated_modules=module_outputs,
+            update_list=update_modules
+        )
+        
+        # 7. 构建 ProjectContext
+        context = ProjectContext(
+            repo_id=self.repo_id,
+            branch=self.branch,
+            commit_sha=current_commit,
+            scan=scan_result,
+            final_context=final_context,
+            token_count=self._estimate_tokens(final_context)
+        )
+        
+        # 更新各模块的输出
+        for module, output in module_outputs.items():
+            setattr(context, module, output)
+        
+        # 8. 保存输出
+        self._save_outputs(context)
+        self._save_cache(context)
+        
+        logger.info(f"Incremental update completed in {time.time() - context.scan.start_time:.2f}s")
+        logger.info(f"Updated modules: {', '.join(update_modules)}")
+        
+        return context
+    
+    def _run_incremental_agent(
+        self,
+        agent,
+        scan: ScanResult,
+        base_context: str,
+        changes: dict,
+        module: str
+    ) -> AgentOutput:
+        """
+        运行单个 Agent 的增量更新
+        
+        Args:
+            agent: Agent 实例
+            scan: 扫描结果
+            base_context: 基准上下文文本
+            changes: 变更字典
+            module: 模块名
+            
+        Returns:
+            Agent 输出
+        """
+        # 加载增量更新 prompt
+        prompt_path = Path(__file__).parent.parent.parent.parent / "prompts" / "en" / "project_update.txt"
+        
+        if not prompt_path.exists():
+            logger.warning(f"Incremental prompt not found, falling back to full analysis")
+            return agent.analyze(scan)
+        
+        prompt_template = prompt_path.read_text(encoding='utf-8')
+        
+        # 填充 prompt 变量
+        prompt = prompt_template.format(
+            base_commit=changes['base_commit'],
+            current_commit=changes['current_commit'],
+            base_context=base_context,
+            added_files='\n'.join(changes.get('added_files', [])),
+            modified_files='\n'.join(changes.get('modified_files', [])),
+            deleted_files='\n'.join(changes.get('deleted_files', [])),
+            affected_modules=', '.join(changes['affected_modules']),
+            current_module=module,
+            impact_level=changes['estimated_impact'].get(module, 'unknown')
+        )
+        
+        # 执行增量分析（复用 Agent 的 _call_copilot 方法）
+        try:
+            start_time = time.time()
+            result = agent._call_copilot(prompt, temperature=0.3)
+            duration = time.time() - start_time
+            
+            return AgentOutput(
+                role=agent.role,
+                content=result,
+                success=True,
+                duration=duration,
+                retry_count=0
+            )
+        except Exception as e:
+            logger.error(f"Incremental analysis failed for {module}: {e}")
+            return AgentOutput(
+                role=agent.role,
+                error=str(e),
+                success=False,
+                duration=0,
+                retry_count=0
+            )
+    
+    def _merge_contexts(
+        self,
+        base_context: str,
+        updated_modules: dict,
+        update_list: list[str]
+    ) -> str:
+        """
+        合并基准上下文和更新的模块
+        
+        Args:
+            base_context: 基准上下文文本
+            updated_modules: 更新的模块输出字典
+            update_list: 更新的模块列表
+            
+        Returns:
+            合并后的上下文文本
+        """
+        # 简单策略：完整替换
+        # TODO: 更智能的合并策略（保留未变化部分）
+        
+        merged = f"# Project Context (Incremental Update)\n\n"
+        merged += f"Updated modules: {', '.join(update_list)}\n\n"
+        merged += "---\n\n"
+        
+        for module, output in updated_modules.items():
+            if output.success and output.content:
+                merged += f"## {module.replace('_', ' ').title()}\n\n"
+                merged += output.content
+                merged += "\n\n---\n\n"
+        
+        return merged
+    
+    def _create_context_from_base(
+        self, 
+        base_context: str, 
+        base_commit: str, 
+        current_commit: str
+    ) -> ProjectContext:
+        """
+        从基准上下文创建 ProjectContext（无变更场景）
+        
+        Args:
+            base_context: 基准上下文文本
+            base_commit: 基准 commit
+            current_commit: 当前 commit
+            
+        Returns:
+            ProjectContext
+        """
+        return ProjectContext(
+            repo_id=self.repo_id,
+            branch=self.branch,
+            commit_sha=current_commit,
+            final_context=base_context,
+            token_count=self._estimate_tokens(base_context)
+        )

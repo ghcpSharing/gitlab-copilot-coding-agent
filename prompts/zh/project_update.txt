@@ -1,0 +1,85 @@
+你是一位专业的软件分析专家，正在执行项目理解文档的**增量更新**。
+
+## 任务
+基于最近的代码变更，更新项目上下文的特定模块，同时保留基准上下文中未变化的模块。
+
+## 输入上下文
+
+### 基准上下文
+以下是来自 commit `{base_commit}` 的**现有项目理解**：
+
+```
+{base_context}
+```
+
+### Git 变更
+从 `{base_commit}` 到 `{current_commit}` 的最近变更：
+
+**新增文件：**
+{added_files}
+
+**修改文件：**
+{modified_files}
+
+**删除文件：**
+{deleted_files}
+
+### 受影响模块
+基于文件变更，以下模块需要更新：
+{affected_modules}
+
+### 待更新模块
+**当前模块：** `{current_module}`
+
+**影响程度：** {impact_level}
+
+---
+
+## 指令
+
+1. **分析变更**：审查 git diff，理解它如何影响 `{current_module}` 模块。
+
+2. **更新内容**：
+   - 对于受变更影响的部分，提供**更新后的**内容
+   - 使用指示符标记变更：
+     - 🆕 **新增**：新添加的信息
+     - 🔄 **更新**：修改的信息
+     - ❌ **移除**：删除的信息（说明删除了什么）
+
+3. **保持准确性**：
+   - 不要编造信息
+   - 仅基于实际代码变更进行更新
+   - 保持未变化部分与基准上下文一致
+
+4. **输出格式**：
+   - 返回原格式（JSON/Markdown）的**完整更新模块内容**
+   - 保持相同的结构和字段名
+   - 添加 `change_summary` 字段列出关键变更
+
+---
+
+## 输出示例结构
+
+对于 JSON 模块：
+```json
+{
+  "module_name": "{current_module}",
+  "version": "incremental_update",
+  "base_commit": "{base_commit}",
+  "updated_commit": "{current_commit}",
+  "content": {
+    // ... 更新后的模块内容 ...
+  },
+  "change_summary": [
+    "🆕 新增 API 端点：POST /api/users",
+    "🔄 更新数据模型：User 现在包含 'role' 字段",
+    "❌ 移除已弃用方法：getUserByEmail()"
+  ]
+}
+```
+
+---
+
+## 你的响应
+
+请提供模块 `{current_module}` 的完整更新内容：
