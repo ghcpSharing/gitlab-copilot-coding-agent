@@ -100,6 +100,7 @@ class Settings:
         self.use_orchestrated_review = os.getenv("USE_ORCHESTRATED_REVIEW", "false").lower() in {"true", "1", "yes", "on"}
         self.enable_project_understanding = os.getenv("ENABLE_PROJECT_UNDERSTANDING", "false").lower() in {"true", "1", "yes", "on"}
         self.copilot_language = os.getenv("COPILOT_LANGUAGE", "en")
+        self.azure_storage_connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
 
     @staticmethod
     def _require(name: str) -> str:
@@ -284,6 +285,10 @@ def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
         "COPILOT_LANGUAGE": settings.copilot_language,
     }
+    
+    # Add Azure Storage connection string if available
+    if settings.azure_storage_connection_string:
+        variables["AZURE_STORAGE_CONNECTION_STRING"] = settings.azure_storage_connection_string
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "SOURCE_BRANCH", "TARGET_MR_IID") if not variables.get(k)]
     if missing:
