@@ -21,10 +21,6 @@ require_env TARGET_MR_IID
 require_env MR_TITLE
 require_env MR_DESCRIPTION
 
-# 创建工作目录（与其他脚本保持一致）
-mkdir -p repo-b
-cd repo-b
-
 echo "=========================================="
 echo "  🤖 Orchestrated MR Code Review"
 echo "========================================="
@@ -68,13 +64,33 @@ print(authed)
 PY
 
 AUTHED_URL="$(cat authed_repo_url.txt)"
-rm -rf repo-review
-GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-review >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to clone repository" >&2
-  exit 1
-}
+
+# 检查是否已有 repo-b（来自项目理解预分析）
+if [ -d "repo-b" ] && [ -n "${SKIP_REPO_CLONE:-}" ]; then
+  echo "[INFO] Using existing repo-b directory (project understanding enabled)"
+  # 复制 repo-b 到 repo-review
+  cp -r repo-b repo-review
+else
+  rm -rf repo-review
+  GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-review >/dev/null 2>&1 || {
+    echo "[ERROR] Failed to clone repository" >&2
+    exit 1
+  }
+fi
 
 cd repo-review
+
+# 如果有项目理解上下文，加载它
+if [ -f "../.project_context_path" ]; then
+  PROJECT_CONTEXT_FILE=$(cat ../.project_context_path)
+  echo "[INFO] Project context available at: ${PROJECT_CONTEXT_FILE}"
+  # 确保上下文文件在当前目录可访问
+  if [ -f "../${PROJECT_CONTEXT_FILE}" ]; then
+    mkdir -p .copilot
+    cp "../${PROJECT_CONTEXT_FILE}" .copilot/project_context.md
+    echo "[INFO] Copied project context to .copilot/project_context.md"
+  fi
+fi
 
 echo "[INFO] Fetching branches..."
 git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {

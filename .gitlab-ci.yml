@@ -119,12 +119,10 @@ mr_review:
   artifacts:
     when: always
     paths:
-      - repo-b/review_raw.txt
-      - repo-b/review_summary.txt
-      - repo-b/review_findings.json
-      - repo-b/review_comment.txt
-      - repo-b/.copilot/
       - repo-review/task_plan.json
       - repo-review/review_results.json
       - repo-review/review_summary.md
       - repo-review/full_diff.txt
+      - repo-review/review_comment.txt
+      - repo-review/.copilot/
+      - repo-b/.copilot/
