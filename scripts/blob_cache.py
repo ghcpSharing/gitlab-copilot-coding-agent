@@ -37,6 +37,34 @@ class BlobCache:
             print(f"[INFO] Creating container: {container_name}")
             self.container_client.create_container()
     
+    def _compute_file_hash(self, file_path: Path, chunk_size: int = 8192) -> str:
+        """
+        计算文件的 SHA-256 hash
+        
+        Args:
+            file_path: 文件路径
+            chunk_size: 读取块大小（字节），默认 8KB
+            
+        Returns:
+            格式：sha256-{hex_digest}
+        """
+        sha256_hash = hashlib.sha256()
+        
+        try:
+            with open(file_path, "rb") as f:
+                # 流式读取，支持大文件
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    sha256_hash.update(chunk)
+            
+            hex_digest = sha256_hash.hexdigest()
+            return f"sha256-{hex_digest}"
+        except Exception as e:
+            print(f"[ERROR] Failed to compute hash for {file_path}: {e}")
+            raise
+    
     def _get_blob_prefix(self, project_id: str, branch: str) -> str:
         """
         生成 blob 路径前缀
