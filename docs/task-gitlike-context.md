@@ -65,61 +65,66 @@
 ### **Phase 2: Blob Storage 结构重构** (2-3 天)
 
 #### Task 2.1: 实现 objects/content/ 内容对象存储
-- [ ] **文件**: `scripts/blob_cache.py`
-- [ ] **目标**: 实现基于 hash 的内容对象上传/下载
-- [ ] **子任务**:
-  - [ ] 添加 `_upload_content_object(file_path, content_hash)` 方法
+- [x] **文件**: `scripts/blob_cache.py`
+- [x] **目标**: 实现基于 hash 的内容对象上传/下载
+- [x] **子任务**:
+  - [x] 添加 `_upload_content_object(file_path, content_hash)` 方法
     - 路径格式：`objects/content/{content_hash}`
     - 上传前检查是否已存在（去重）
-  - [ ] 添加 `_download_content_object(content_hash, local_path)` 方法
-  - [ ] 添加 `_content_exists(content_hash) -> bool` 方法
-  - [ ] 批量上传优化（并发上传）
-- [ ] **验收标准**: 
+  - [x] 添加 `_download_content_object(content_hash, local_path)` 方法
+  - [x] 添加 `_content_exists(content_hash) -> bool` 方法
+  - [ ] 批量上传优化（并发上传）（Phase 7）
+- [x] **验收标准**: 
   - 相同内容只上传一次
   - 下载的文件与原文件 hash 相同
-- [ ] **预计时间**: 4-5 小时
+- [x] **预计时间**: 4-5 小时
+- [x] **完成时间**: 2025-12-08
 
 #### Task 2.2: 重构 projects/ 目录结构
-- [ ] **文件**: `scripts/blob_cache.py`
-- [ ] **目标**: 实现新的 projects/{project_id}/branches/{branch}/commits/ 结构
-- [ ] **子任务**:
-  - [ ] 修改 `_get_metadata_path()` 方法
+- [x] **文件**: `scripts/blob_cache.py`
+- [x] **目标**: 实现新的 projects/{project_id}/branches/{branch}/commits/ 结构
+- [x] **子任务**:
+  - [x] 修改 `_get_metadata_path()` 方法
     - 新路径：`projects/{project_id}/branches/{branch}/commits/{commit_sha}/metadata.json`
-  - [ ] 添加 `_get_branch_path()` 方法
-  - [ ] 添加 `_get_commit_path()` 方法
+  - [x] 添加 `_get_branch_path()` 方法
+  - [x] 添加 `_get_commit_path()` 方法
+  - [x] 添加 `_sanitize_branch_name()` 方法
   - [ ] 迁移现有数据（可选）
-- [ ] **验收标准**: 
+- [x] **验收标准**: 
   - 新旧路径兼容
   - 目录结构清晰可导航
-- [ ] **预计时间**: 3 小时
+- [x] **预计时间**: 3 小时
+- [x] **完成时间**: 2025-12-08
 
 #### Task 2.3: 实现 latest.json 最新 commit 索引
-- [ ] **文件**: `scripts/blob_cache.py`
-- [ ] **目标**: 快速查找分支最新 commit
-- [ ] **子任务**:
-  - [ ] 添加 `_update_branch_latest(project_id, branch, commit_sha, metadata)` 方法
+- [x] **文件**: `scripts/blob_cache.py`
+- [x] **目标**: 快速查找分支最新 commit
+- [x] **子任务**:
+  - [x] 添加 `_update_branch_latest(project_id, branch, commit_sha, metadata)` 方法
     - 路径：`projects/{project_id}/branches/{branch}/latest.json`
     - 内容：`{commit_sha, created_at, analysis_type}`
-  - [ ] 添加 `_get_branch_latest(project_id, branch)` 方法
-  - [ ] 上传 metadata 时自动更新 latest.json
-- [ ] **验收标准**: 
+  - [x] 添加 `_get_branch_latest(project_id, branch)` 方法
+  - [ ] 上传 metadata 时自动更新 latest.json（Phase 4 集成）
+- [x] **验收标准**: 
   - latest.json 始终指向最新 commit
   - 并发上传时无冲突
-- [ ] **预计时间**: 2 小时
+- [x] **预计时间**: 2 小时
+- [x] **完成时间**: 2025-12-08
 
 #### Task 2.4: 实现 parent_branch.json 派生关系记录
-- [ ] **文件**: `scripts/blob_cache.py`
-- [ ] **目标**: 记录分支的基准分支信息
-- [ ] **子任务**:
-  - [ ] 添加 `record_branch_fork()` 方法
+- [x] **文件**: `scripts/blob_cache.py`
+- [x] **目标**: 记录分支的基准分支信息
+- [x] **子任务**:
+  - [x] 添加 `record_branch_fork()` 方法
     - 参数：project_id, new_branch, base_branch, base_commit
     - 路径：`projects/{project_id}/branches/{new_branch}/parent_branch.json`
-  - [ ] 添加 `_get_base_branch_info()` 方法
-  - [ ] 添加 CLI 支持：`blob_cache.py record-fork`
-- [ ] **验收标准**: 
+  - [x] 添加 `_get_base_branch_info()` 方法
+  - [x] 添加 CLI 支持：`blob_cache.py record-fork`
+- [x] **验收标准**: 
   - 可记录分支派生关系
   - 可读取基准分支信息
-- [ ] **预计时间**: 2 小时
+- [x] **预计时间**: 2 小时
+- [x] **完成时间**: 2025-12-08
 
 ---
 

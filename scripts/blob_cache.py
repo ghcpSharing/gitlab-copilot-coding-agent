@@ -65,15 +65,45 @@ class BlobCache:
             print(f"[ERROR] Failed to compute hash for {file_path}: {e}")
             raise
     
+    def _sanitize_branch_name(self, branch: str) -> str:
+        """清理分支名中的特殊字符"""
+        return branch.replace('/', '_').replace('\\', '_')
+    
     def _get_blob_prefix(self, project_id: str, branch: str) -> str:
         """
-        生成 blob 路径前缀
+        生成 blob 路径前缀（旧格式，保持向后兼容）
         
         格式: {project_id}/{branch}/
         """
-        # 清理分支名中的特殊字符
-        safe_branch = branch.replace('/', '_').replace('\\', '_')
+        safe_branch = self._sanitize_branch_name(branch)
         return f"{project_id}/{safe_branch}"
+    
+    def _get_branch_path(self, project_id: str, branch: str) -> str:
+        """
+        生成分支路径（新格式）
+        
+        格式: projects/{project_id}/branches/{branch}/
+        """
+        safe_branch = self._sanitize_branch_name(branch)
+        return f"projects/{project_id}/branches/{safe_branch}"
+    
+    def _get_commit_path(self, project_id: str, branch: str, commit_sha: str) -> str:
+        """
+        生成 commit 路径（新格式）
+        
+        格式: projects/{project_id}/branches/{branch}/commits/{commit_sha}/
+        """
+        branch_path = self._get_branch_path(project_id, branch)
+        return f"{branch_path}/commits/{commit_sha}"
+    
+    def _get_metadata_path(self, project_id: str, branch: str, commit_sha: str) -> str:
+        """
+        生成 metadata.json 路径（新格式）
+        
+        格式: projects/{project_id}/branches/{branch}/commits/{commit_sha}/metadata.json
+        """
+        commit_path = self._get_commit_path(project_id, branch, commit_sha)
+        return f"{commit_path}/metadata.json"
     
     def _get_blob_path(self, project_id: str, branch: str, commit_sha: str, filename: str) -> str:
         """
@@ -83,6 +113,234 @@ class BlobCache:
         """
         prefix = self._get_blob_prefix(project_id, branch)
         return f"{prefix}/{commit_sha}/{filename}"
+    
+    def _get_content_object_path(self, content_hash: str) -> str:
+        """
+        生成内容对象的 blob 路径
+        
+        格式: objects/content/{content_hash}
+        """
+        return f"objects/content/{content_hash}"
+    
+    def _content_exists(self, content_hash: str) -> bool:
+        """
+        检查内容对象是否已存在
+        
+        Args:
+            content_hash: 内容 hash (sha256-xxx)
+            
+        Returns:
+            存在返回 True
+        """
+        blob_path = self._get_content_object_path(content_hash)
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=blob_path
+        )
+        
+        try:
+            blob_client.get_blob_properties()
+            return True
+        except Exception:
+            return False
+    
+    def _upload_content_object(self, file_path: Path, content_hash: str) -> bool:
+        """
+        上传内容对象到 objects/content/
+        
+        Args:
+            file_path: 本地文件路径
+            content_hash: 内容 hash
+            
+        Returns:
+            成功返回 True
+        """
+        # 检查是否已存在（去重）
+        if self._content_exists(content_hash):
+            print(f"[INFO] Content object already exists: {content_hash} (deduplicated)")
+            return True
+        
+        blob_path = self._get_content_object_path(content_hash)
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=blob_path
+        )
+        
+        try:
+            with open(file_path, 'rb') as data:
+                blob_client.upload_blob(data, overwrite=False)
+            print(f"[INFO] Uploaded content object: {content_hash}")
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to upload content object {content_hash}: {e}")
+            return False
+    
+    def _download_content_object(self, content_hash: str, local_path: Path) -> bool:
+        """
+        从 objects/content/ 下载内容对象
+        
+        Args:
+            content_hash: 内容 hash
+            local_path: 本地保存路径
+            
+        Returns:
+            成功返回 True
+        """
+        blob_path = self._get_content_object_path(content_hash)
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=blob_path
+        )
+        
+        try:
+            # 创建父目录
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(local_path, 'wb') as f:
+                data = blob_client.download_blob()
+                f.write(data.readall())
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to download content object {content_hash}: {e}")
+            return False
+    
+    def _update_branch_latest(self, project_id: str, branch: str, commit_sha: str, metadata: dict) -> bool:
+        """
+        更新分支的 latest.json 索引
+        
+        Args:
+            project_id: 项目 ID
+            branch: 分支名
+            commit_sha: Commit SHA
+            metadata: metadata 字典
+            
+        Returns:
+            成功返回 True
+        """
+        branch_path = self._get_branch_path(project_id, branch)
+        latest_path = f"{branch_path}/latest.json"
+        
+        latest_info = {
+            "commit_sha": commit_sha,
+            "created_at": metadata.get("analysis", {}).get("created_at", datetime.now().isoformat()),
+            "analysis_type": metadata.get("analysis", {}).get("type", "full")
+        }
+        
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=latest_path
+        )
+        
+        try:
+            blob_client.upload_blob(
+                json.dumps(latest_info, indent=2),
+                overwrite=True
+            )
+            print(f"[INFO] Updated latest.json for {branch}: {commit_sha}")
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to update latest.json: {e}")
+            return False
+    
+    def _get_branch_latest(self, project_id: str, branch: str) -> Optional[dict]:
+        """
+        获取分支的最新 commit 信息
+        
+        Args:
+            project_id: 项目 ID
+            branch: 分支名
+            
+        Returns:
+            latest.json 内容，未找到返回 None
+        """
+        branch_path = self._get_branch_path(project_id, branch)
+        latest_path = f"{branch_path}/latest.json"
+        
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=latest_path
+        )
+        
+        try:
+            data = blob_client.download_blob().readall()
+            return json.loads(data)
+        except Exception:
+            return None
+    
+    def record_branch_fork(
+        self,
+        project_id: str,
+        new_branch: str,
+        base_branch: str,
+        base_commit: str,
+        fork_type: str = "branch",
+        created_by: Optional[str] = None
+    ) -> bool:
+        """
+        记录分支派生关系
+        
+        Args:
+            project_id: 项目 ID
+            new_branch: 新分支名
+            base_branch: 基准分支名
+            base_commit: 基准 commit SHA
+            fork_type: 派生类型 (branch/merge/rebase)
+            created_by: 创建者
+            
+        Returns:
+            成功返回 True
+        """
+        branch_path = self._get_branch_path(project_id, new_branch)
+        parent_path = f"{branch_path}/parent_branch.json"
+        
+        fork_info = {
+            "base_branch": base_branch,
+            "base_commit": base_commit,
+            "created_at": datetime.now().isoformat(),
+            "fork_type": fork_type,
+            "created_by": created_by
+        }
+        
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=parent_path
+        )
+        
+        try:
+            blob_client.upload_blob(
+                json.dumps(fork_info, indent=2),
+                overwrite=True
+            )
+            print(f"[INFO] Recorded branch fork: {new_branch} <- {base_branch}@{base_commit[:8]}")
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to record branch fork: {e}")
+            return False
+    
+    def _get_base_branch_info(self, project_id: str, branch: str) -> Optional[dict]:
+        """
+        获取分支的基准分支信息
+        
+        Args:
+            project_id: 项目 ID
+            branch: 分支名
+            
+        Returns:
+            parent_branch.json 内容，未找到返回 None
+        """
+        branch_path = self._get_branch_path(project_id, branch)
+        parent_path = f"{branch_path}/parent_branch.json"
+        
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=parent_path
+        )
+        
+        try:
+            data = blob_client.download_blob().readall()
+            return json.loads(data)
+        except Exception:
+            return None
     
     def upload_context(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
         """
@@ -226,13 +484,17 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Azure Blob Storage cache manager for project context')
-    parser.add_argument('action', choices=['upload', 'download', 'find'], help='Action to perform')
+    parser.add_argument('action', choices=['upload', 'download', 'find', 'record-fork'], help='Action to perform')
     parser.add_argument('--connection-string', required=True, help='Azure Storage connection string')
     parser.add_argument('--container', default='code', help='Container name (default: code)')
     parser.add_argument('--project-id', required=True, help='GitLab project ID')
     parser.add_argument('--branch', required=True, help='Branch name')
     parser.add_argument('--commit', help='Commit SHA')
     parser.add_argument('--local-dir', help='Local directory path')
+    parser.add_argument('--base-branch', help='Base branch name (for record-fork)')
+    parser.add_argument('--base-commit', help='Base commit SHA (for record-fork)')
+    parser.add_argument('--fork-type', default='branch', help='Fork type: branch/merge/rebase')
+    parser.add_argument('--created-by', help='Creator username')
     
     args = parser.parse_args()
     
@@ -272,6 +534,21 @@ def main():
         else:
             print(f"[INFO] No cache found for {args.project_id}/{args.branch}")
             sys.exit(1)
+    
+    elif args.action == 'record-fork':
+        if not args.base_branch or not args.base_commit:
+            print("[ERROR] --base-branch and --base-commit are required for record-fork")
+            sys.exit(1)
+        
+        success = cache.record_branch_fork(
+            args.project_id,
+            args.branch,  # new_branch
+            args.base_branch,
+            args.base_commit,
+            args.fork_type,
+            args.created_by
+        )
+        sys.exit(0 if success else 1)
 
 
 if __name__ == '__main__':
