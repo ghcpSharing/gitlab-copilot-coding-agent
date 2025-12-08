@@ -342,6 +342,153 @@ class BlobCache:
         except Exception:
             return None
     
+    def _get_metadata(self, project_id: str, branch: str, commit_sha: str) -> Optional[dict]:
+        """
+        获取指定 commit 的 metadata.json
+        
+        Args:
+            project_id: 项目 ID
+            branch: 分支名
+            commit_sha: Commit SHA
+            
+        Returns:
+            metadata 字典，未找到返回 None
+        """
+        metadata_path = self._get_metadata_path(project_id, branch, commit_sha)
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=metadata_path
+        )
+        
+        try:
+            data = blob_client.download_blob().readall()
+            return json.loads(data)
+        except Exception:
+            return None
+    
+    def find_best_context(
+        self,
+        project_id: str,
+        branch: str,
+        commit_sha: str,
+        parent_commit: Optional[str] = None
+    ) -> Optional[dict]:
+        """
+        智能查找最佳可用缓存（Level 1-4）
+        
+        查找优先级：
+        1. 当前 commit（精确匹配）
+        2. 父 commit（增量更新）
+        3. 分支最新 commit（增量更新）
+        4. 基准分支的 base_commit（跨分支复用）
+        
+        Args:
+            project_id: 项目 ID
+            branch: 分支名
+            commit_sha: 当前 commit SHA
+            parent_commit: 父 commit SHA（可选）
+            
+        Returns:
+            {
+                "found": True/False,
+                "commit_sha": "...",
+                "metadata": {...},
+                "reuse_strategy": "exact|incremental|cross-branch|full_analysis",
+                "base_branch": "..." (仅跨分支时)
+            }
+        """
+        print(f"[INFO] Searching for best cache: {project_id}/{branch}@{commit_sha[:8]}")
+        
+        # === Level 1: 精确匹配（当前 commit） ===
+        print("[INFO] Level 1: Checking exact match...")
+        metadata = self._get_metadata(project_id, branch, commit_sha)
+        if metadata:
+            print(f"[INFO] ✓ Found exact match: {commit_sha[:8]}")
+            return {
+                "found": True,
+                "commit_sha": commit_sha,
+                "metadata": metadata,
+                "reuse_strategy": "exact"
+            }
+        
+        # === Level 2: 父 commit（增量更新） ===
+        if parent_commit:
+            print(f"[INFO] Level 2: Checking parent commit {parent_commit[:8]}...")
+            metadata = self._get_metadata(project_id, branch, parent_commit)
+            if metadata:
+                print(f"[INFO] ✓ Found parent commit: {parent_commit[:8]}")
+                return {
+                    "found": True,
+                    "commit_sha": parent_commit,
+                    "metadata": metadata,
+                    "reuse_strategy": "incremental"
+                }
+        
+        # === Level 3: 分支最新 commit ===
+        print("[INFO] Level 3: Checking branch latest...")
+        latest_info = self._get_branch_latest(project_id, branch)
+        if latest_info and latest_info.get("commit_sha") != commit_sha:
+            latest_commit = latest_info["commit_sha"]
+            metadata = self._get_metadata(project_id, branch, latest_commit)
+            if metadata:
+                print(f"[INFO] ✓ Found branch latest: {latest_commit[:8]}")
+                return {
+                    "found": True,
+                    "commit_sha": latest_commit,
+                    "metadata": metadata,
+                    "reuse_strategy": "incremental"
+                }
+        
+        # === Level 4: 基准分支（跨分支复用） ===
+        print("[INFO] Level 4: Checking base branch...")
+        base_branch_info = self._get_base_branch_info(project_id, branch)
+        if base_branch_info:
+            base_branch = base_branch_info["base_branch"]
+            base_commit = base_branch_info["base_commit"]
+            print(f"[INFO] Found base branch: {base_branch}@{base_commit[:8]}")
+            
+            metadata = self._get_metadata(project_id, base_branch, base_commit)
+            if metadata:
+                print(f"[INFO] ✓ Found base branch context: {base_branch}@{base_commit[:8]}")
+                return {
+                    "found": True,
+                    "commit_sha": base_commit,
+                    "metadata": metadata,
+                    "reuse_strategy": "cross-branch",
+                    "base_branch": base_branch
+                }
+        
+        # === Level 5: 内容相似（rebase 场景） ===
+        # 注意：Level 5 需要 git 仓库访问，暂时跳过
+        # TODO: 实现 _find_content_similar_commit()
+        
+        # === Level 6: 未找到任何缓存 ===
+        print("[INFO] ✗ No cache found, will perform full analysis")
+        return {
+            "found": False,
+            "reuse_strategy": "full_analysis"
+        }
+    
+    def _calculate_similarity(self, tree1: set, tree2: set) -> float:
+        """
+        计算两个文件树的 Jaccard 相似度
+        
+        Args:
+            tree1: 文件集合 1
+            tree2: 文件集合 2
+            
+        Returns:
+            相似度（0-1）
+        """
+        if not tree1 and not tree2:
+            return 1.0
+        if not tree1 or not tree2:
+            return 0.0
+        
+        intersection = len(tree1 & tree2)
+        union = len(tree1 | tree2)
+        return intersection / union if union > 0 else 0.0
+    
     def upload_context(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
         """
         上传项目理解上下文到 Blob Storage
@@ -484,13 +631,14 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Azure Blob Storage cache manager for project context')
-    parser.add_argument('action', choices=['upload', 'download', 'find', 'record-fork'], help='Action to perform')
+    parser.add_argument('action', choices=['upload', 'download', 'find', 'find-best', 'record-fork'], help='Action to perform')
     parser.add_argument('--connection-string', required=True, help='Azure Storage connection string')
     parser.add_argument('--container', default='code', help='Container name (default: code)')
     parser.add_argument('--project-id', required=True, help='GitLab project ID')
     parser.add_argument('--branch', required=True, help='Branch name')
     parser.add_argument('--commit', help='Commit SHA')
     parser.add_argument('--local-dir', help='Local directory path')
+    parser.add_argument('--parent-commit', help='Parent commit SHA for find-best')
     parser.add_argument('--base-branch', help='Base branch name (for record-fork)')
     parser.add_argument('--base-commit', help='Base commit SHA (for record-fork)')
     parser.add_argument('--fork-type', default='branch', help='Fork type: branch/merge/rebase')
@@ -534,6 +682,22 @@ def main():
         else:
             print(f"[INFO] No cache found for {args.project_id}/{args.branch}")
             sys.exit(1)
+    
+    elif args.action == 'find-best':
+        if not args.commit:
+            print("[ERROR] --commit is required for find-best")
+            sys.exit(1)
+        
+        result = cache.find_best_context(
+            args.project_id,
+            args.branch,
+            args.commit,
+            args.parent_commit
+        )
+        
+        # 输出 JSON 格式结果
+        print(json.dumps(result, indent=2))
+        sys.exit(0 if result["found"] else 1)
     
     elif args.action == 'record-fork':
         if not args.base_branch or not args.base_commit:
