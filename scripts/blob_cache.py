@@ -489,9 +489,153 @@ class BlobCache:
         union = len(tree1 | tree2)
         return intersection / union if union > 0 else 0.0
     
+    def upload_context_with_dedup(self, local_dir: Path, project_id: str, branch: str, 
+                                   commit_sha: str, parent_metadata: Optional[dict] = None) -> bool:
+        """
+        使用去重上传项目理解上下文到 Blob Storage
+        
+        Args:
+            local_dir: 本地 .copilot 目录路径
+            project_id: GitLab 项目 ID
+            branch: 分支名
+            commit_sha: Commit SHA
+            parent_metadata: 父 commit 的 metadata（用于增量去重）
+            
+        Returns:
+            成功返回 True
+        """
+        if not local_dir.exists():
+            print(f"[ERROR] Directory not found: {local_dir}")
+            return False
+        
+        # 构建 parent 的 content_objects 索引（路径 → hash）
+        parent_objects = {}
+        if parent_metadata and "content_objects" in parent_metadata:
+            parent_objects = {
+                obj["file_path"]: obj["content_hash"] 
+                for obj in parent_metadata["content_objects"]
+            }
+        
+        # 统计信息
+        stats = {
+            "total_files": 0,
+            "inherited_files": 0,
+            "updated_files": 0,
+            "new_files": 0,
+            "uploaded_objects": 0
+        }
+        
+        # 扫描所有文件并计算 hash
+        content_objects = []
+        for file_path in local_dir.rglob('*'):
+            if not file_path.is_file():
+                continue
+            
+            stats["total_files"] += 1
+            
+            # 计算相对路径
+            rel_path = str(file_path.relative_to(local_dir.parent))
+            
+            # 计算 content hash
+            content_hash = self._compute_file_hash(file_path)
+            file_size = file_path.stat().st_size
+            
+            # 判断来源
+            source = "new"
+            source_commit = commit_sha
+            
+            if rel_path in parent_objects:
+                parent_hash = parent_objects[rel_path]
+                if content_hash == parent_hash:
+                    # 内容未变，直接复用
+                    source = "inherited"
+                    source_commit = parent_metadata.get("commit_sha", "unknown")
+                    stats["inherited_files"] += 1
+                    print(f"[INFO] ✓ Inherited: {rel_path} (hash: {content_hash[:12]})")
+                else:
+                    # 内容已更新
+                    source = "updated"
+                    stats["updated_files"] += 1
+                    print(f"[INFO] ↻ Updated: {rel_path} (hash: {content_hash[:12]})")
+            else:
+                stats["new_files"] += 1
+                print(f"[INFO] + New: {rel_path} (hash: {content_hash[:12]})")
+            
+            # 记录 content object 信息
+            content_objects.append({
+                "file_path": rel_path,
+                "content_hash": content_hash,
+                "size": file_size,
+                "source": source,
+                "source_commit": source_commit
+            })
+            
+            # 检查 content object 是否已存在
+            if not self._content_exists(content_hash):
+                # 上传 content object
+                success = self._upload_content_object(file_path, content_hash)
+                if not success:
+                    print(f"[ERROR] Failed to upload content object: {content_hash}")
+                    return False
+                stats["uploaded_objects"] += 1
+            else:
+                print(f"[INFO] ✓ Content exists: {content_hash[:12]} (skipped upload)")
+        
+        # 计算去重比率
+        dedup_ratio = stats["inherited_files"] / stats["total_files"] if stats["total_files"] > 0 else 0
+        
+        # 构建 metadata.json
+        metadata = {
+            "commit_sha": commit_sha,
+            "branch": branch,
+            "project_id": project_id,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "content_objects": content_objects,
+            "stats": {
+                "total_files": stats["total_files"],
+                "inherited_files": stats["inherited_files"],
+                "updated_files": stats["updated_files"],
+                "new_files": stats["new_files"],
+                "deduplication_ratio": round(dedup_ratio, 4)
+            }
+        }
+        
+        # 上传 metadata.json
+        metadata_path = self._get_metadata_path(project_id, branch, commit_sha)
+        blob_client = self.blob_service_client.get_blob_client(
+            container=self.container_name,
+            blob=metadata_path
+        )
+        
+        try:
+            blob_client.upload_blob(
+                json.dumps(metadata, indent=2),
+                overwrite=True
+            )
+            print(f"[INFO] ✓ Uploaded metadata: {metadata_path}")
+        except Exception as e:
+            print(f"[ERROR] Failed to upload metadata: {e}")
+            return False
+        
+        # 更新 branch latest.json
+        self._update_branch_latest(project_id, branch, commit_sha, metadata)
+        
+        # 输出统计信息
+        print(f"\n[SUCCESS] Upload completed with deduplication:")
+        print(f"  Total files: {stats['total_files']}")
+        print(f"  Inherited: {stats['inherited_files']} (reused)")
+        print(f"  Updated: {stats['updated_files']}")
+        print(f"  New: {stats['new_files']}")
+        print(f"  Uploaded objects: {stats['uploaded_objects']}")
+        print(f"  Deduplication ratio: {dedup_ratio:.2%}")
+        
+        return True
+    
     def upload_context(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
         """
-        上传项目理解上下文到 Blob Storage
+        上传项目理解上下文到 Blob Storage（兼容旧版）
+        
+        已废弃，建议使用 upload_context_with_dedup()
         
         Args:
             local_dir: 本地 .copilot 目录路径
@@ -502,42 +646,12 @@ class BlobCache:
         Returns:
             成功返回 True
         """
-        if not local_dir.exists():
-            print(f"[ERROR] Directory not found: {local_dir}")
-            return False
-        
-        # 上传所有文件
-        uploaded_count = 0
-        for file_path in local_dir.rglob('*'):
-            if not file_path.is_file():
-                continue
-            
-            # 计算相对路径
-            rel_path = file_path.relative_to(local_dir.parent)
-            blob_path = self._get_blob_path(project_id, branch, commit_sha, str(rel_path))
-            
-            try:
-                blob_client = self.blob_service_client.get_blob_client(
-                    container=self.container_name,
-                    blob=blob_path
-                )
-                
-                with open(file_path, 'rb') as data:
-                    blob_client.upload_blob(data, overwrite=True)
-                
-                print(f"[INFO] Uploaded: {blob_path}")
-                uploaded_count += 1
-                
-            except Exception as e:
-                print(f"[ERROR] Failed to upload {file_path}: {e}")
-                return False
-        
-        print(f"[SUCCESS] Uploaded {uploaded_count} files to {self._get_blob_prefix(project_id, branch)}/{commit_sha}")
-        return True
+        print("[WARN] Using deprecated upload_context(), consider using upload_context_with_dedup()")
+        return self.upload_context_with_dedup(local_dir, project_id, branch, commit_sha)
     
     def download_context(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
         """
-        从 Blob Storage 下载项目理解上下文
+        从 Blob Storage 下载项目理解上下文（基于 metadata.json）
         
         Args:
             local_dir: 本地目标目录（通常是 repo-xxx/.copilot）
@@ -550,6 +664,60 @@ class BlobCache:
         """
         local_dir.mkdir(parents=True, exist_ok=True)
         
+        # 1. 下载 metadata.json
+        metadata = self._get_metadata(project_id, branch, commit_sha)
+        if not metadata:
+            print(f"[ERROR] No metadata found for {project_id}/{branch}/{commit_sha}")
+            return False
+        
+        if "content_objects" not in metadata:
+            print("[WARN] Metadata does not contain content_objects, falling back to legacy download")
+            return self._download_context_legacy(local_dir, project_id, branch, commit_sha)
+        
+        # 2. 批量下载 content objects
+        content_objects = metadata["content_objects"]
+        print(f"[INFO] Downloading {len(content_objects)} files...")
+        
+        downloaded_count = 0
+        failed_count = 0
+        
+        for obj in content_objects:
+            file_path = obj["file_path"]
+            content_hash = obj["content_hash"]
+            
+            # 目标本地文件路径
+            local_file = local_dir.parent / file_path
+            local_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 下载 content object
+            success = self._download_content_object(content_hash, local_file)
+            if success:
+                print(f"[INFO] ✓ {file_path} (hash: {content_hash[:12]})")
+                downloaded_count += 1
+            else:
+                print(f"[ERROR] ✗ Failed to download: {file_path}")
+                failed_count += 1
+        
+        if failed_count > 0:
+            print(f"[WARN] Downloaded {downloaded_count}/{len(content_objects)} files ({failed_count} failed)")
+            return False
+        
+        print(f"[SUCCESS] Downloaded {downloaded_count} files")
+        return True
+    
+    def _download_context_legacy(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
+        """
+        旧版下载方法（兼容性）
+        
+        Args:
+            local_dir: 本地目标目录
+            project_id: GitLab 项目 ID
+            branch: 分支名
+            commit_sha: Commit SHA
+            
+        Returns:
+            成功返回 True
+        """
         # 查找该 commit 的所有 blob
         prefix = self._get_blob_path(project_id, branch, commit_sha, "")
         
@@ -559,7 +727,6 @@ class BlobCache:
             downloaded_count = 0
             for blob in blob_list:
                 # 提取文件相对路径
-                # blob.name 格式: {project_id}/{branch}/{commit_sha}/.copilot/xxx
                 rel_path = blob.name[len(prefix):]
                 local_file = local_dir.parent / rel_path
                 
@@ -653,11 +820,19 @@ def main():
             print("[ERROR] --local-dir and --commit are required for upload")
             sys.exit(1)
         
-        success = cache.upload_context(
+        # 查找父 commit 的 metadata（用于去重）
+        parent_metadata = None
+        if args.parent_commit:
+            parent_metadata = cache._get_metadata(args.project_id, args.branch, args.parent_commit)
+            if parent_metadata:
+                print(f"[INFO] Found parent metadata: {args.parent_commit[:8]}")
+        
+        success = cache.upload_context_with_dedup(
             Path(args.local_dir),
             args.project_id,
             args.branch,
-            args.commit
+            args.commit,
+            parent_metadata
         )
         sys.exit(0 if success else 1)
     
