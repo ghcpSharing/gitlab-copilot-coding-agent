@@ -247,8 +247,8 @@ def aggregate_review_results(subtasks: List[SubTask]) -> Dict:
         'recommendation': recommendation,
         'files_reviewed': len(total_files_reviewed),
         'subtasks_completed': len([st for st in subtasks if st.status.value == 'completed']),
-        'subtasks_failed': len([st for st in subtasks if st.status.value == 'failed'])
-        # findings 已保存到 review_results.json，不需要在 summary 中显示
+        'subtasks_failed': len([st for st in subtasks if st.status.value == 'failed']),
+        'findings': all_findings  # 包含所有findings用于生成summary
     }
 
 
