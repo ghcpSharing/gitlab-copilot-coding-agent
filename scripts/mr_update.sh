@@ -63,15 +63,20 @@ print(authed)
 PY
 
 AUTHED_URL="$(cat authed_repo_url.txt)"
-rm -rf repo-b
-GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" repo-b >/dev/null 2>&1
 
-if [ ! -d repo-b ]; then
+# Use project-specific directory name
+REPO_DIR="${REPO_DIR:-repo-${TARGET_PROJECT_ID}}"
+echo "[INFO] Using repository directory: ${REPO_DIR}"
+
+rm -rf "${REPO_DIR}"
+GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" "${REPO_DIR}" >/dev/null 2>&1
+
+if [ ! -d "${REPO_DIR}" ]; then
   echo "[ERROR] Failed to clone repository" >&2
   exit 1
 fi
 
-cd repo-b
+cd "${REPO_DIR}"
 
 echo "[INFO] Checking out source branch ${SOURCE_BRANCH}..."
 git fetch origin "${SOURCE_BRANCH}" >/dev/null 2>&1 || {

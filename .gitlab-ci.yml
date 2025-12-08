@@ -40,15 +40,16 @@ issue_workflow:
   image: satomic/copilot-cli:latest
   script:
     - copilot --version
+    - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
     - bash scripts/issue_workflow.sh
   artifacts:
     paths:
       - todo.md
       - todo_completed.md
       - mr.json
-      - repo-b/todo_completed.md
-      - repo-b/patch_raw.txt
-      - repo-b/copilot.patch
+      - repo-*/todo_completed.md
+      - repo-*/patch_raw.txt
+      - repo-*/copilot.patch
 
 # Job for MR note workflow
 mr_update:
@@ -61,10 +62,11 @@ mr_update:
   image: satomic/copilot-cli:latest
   script:
     - copilot --version
+    - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
     - bash scripts/mr_update.sh
   artifacts:
     paths:
-      - repo-b/patch_raw.txt
+      - repo-*/patch_raw.txt
 
 # Job for MR reviewer workflow
 mr_review:
