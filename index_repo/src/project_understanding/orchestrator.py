@@ -89,10 +89,12 @@ class Orchestrator:
         self.commit_sha = commit_sha
         
         # 创建共享的 Copilot 客户端
+        # 重要：working_dir 必须设置为目标项目目录，Copilot CLI 需要在正确的项目上下文中运行
         self.client = CopilotClient(
             timeout=self.config.agent_timeout,
             model=self.config.agent_model,
-            max_retries=self.config.agent_max_retries
+            max_retries=self.config.agent_max_retries,
+            working_dir=self.workspace  # 设置工作目录为目标项目
         )
         
         # Agent 配置
