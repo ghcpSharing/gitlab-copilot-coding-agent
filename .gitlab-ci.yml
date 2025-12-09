@@ -87,22 +87,15 @@ mr_review:
       echo "[DEBUG] GITHUB_TOKEN length: ${#GITHUB_TOKEN}"
       echo "[DEBUG] GITHUB_TOKEN prefix: ${GITHUB_TOKEN:0:20}..."
       
-      # 测试 copilot 是否能正常工作
-      echo "[DEBUG] Testing copilot with simple prompt..."
+      # 测试 copilot 不带 --allow-all-tools
+      echo "[DEBUG] Test 1: copilot without --allow-all-tools..."
       echo "Reply with only: OK" | copilot 2>&1
-      COPILOT_EXIT=$?
-      echo "[DEBUG] Copilot exit code: ${COPILOT_EXIT}"
+      echo "[DEBUG] Exit code (no flags): $?"
       
-      if [ "${COPILOT_EXIT}" -ne 0 ]; then
-        echo "[ERROR] Copilot failed in CI environment!"
-        echo "[DEBUG] Checking node version..."
-        node --version || echo "node not found"
-        echo "[DEBUG] Checking npm version..."
-        npm --version || echo "npm not found"
-        echo "[DEBUG] Environment variables related to GitHub:"
-        env | grep -i github || echo "No GITHUB env vars"
-        env | grep -i gh_ || echo "No GH_ env vars"
-      fi
+      # 测试 copilot 带 --allow-all-tools
+      echo "[DEBUG] Test 2: copilot WITH --allow-all-tools..."
+      echo "Reply with only: OK" | copilot --allow-all-tools 2>&1
+      echo "[DEBUG] Exit code (--allow-all-tools): $?"
       
       # 使用项目ID作为目录名（避免不同项目冲突）
       REPO_DIR="repo-${TARGET_PROJECT_ID}"
