@@ -17,22 +17,23 @@ from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 
 def log_info(msg: str):
     """输出到 stderr，保持 stdout 干净用于 JSON"""
-    log_info(f"{msg}", file=sys.stderr)
+    print(f"[INFO] {msg}", file=sys.stderr)
 
 
 def log_warn(msg: str):
     """输出到 stderr"""
-    log_warn(f"{msg}", file=sys.stderr)
+    print(f"[WARN] {msg}", file=sys.stderr)
 
 
 def log_error(msg: str):
     """输出到 stderr"""
-    log_error(f"{msg}", file=sys.stderr)
+    print(f"[ERROR] {msg}", file=sys.stderr)
 
 
 def log_debug(msg: str):
     """输出到 stderr"""
-    log_debug(f"{msg}", file=sys.stderr)
+    print(f"[DEBUG] {msg}", file=sys.stderr)
+
 
 
 class BlobCache:
@@ -718,7 +719,7 @@ class BlobCache:
             content_hash = obj["content_hash"]
             
             # 目标本地文件路径
-            local_file = local_dir.parent / file_path
+            local_file = local_dir / file_path
             local_file.parent.mkdir(parents=True, exist_ok=True)
             
             # 下载 content object
