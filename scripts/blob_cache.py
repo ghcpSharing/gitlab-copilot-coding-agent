@@ -15,6 +15,26 @@ from typing import Optional
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 
 
+def log_info(msg: str):
+    """输出到 stderr，保持 stdout 干净用于 JSON"""
+    log_info(f"{msg}", file=sys.stderr)
+
+
+def log_warn(msg: str):
+    """输出到 stderr"""
+    log_warn(f"{msg}", file=sys.stderr)
+
+
+def log_error(msg: str):
+    """输出到 stderr"""
+    log_error(f"{msg}", file=sys.stderr)
+
+
+def log_debug(msg: str):
+    """输出到 stderr"""
+    log_debug(f"{msg}", file=sys.stderr)
+
+
 class BlobCache:
     """Azure Blob Storage 缓存管理器"""
     
@@ -26,6 +46,18 @@ class BlobCache:
             connection_string: Azure Storage 连接字符串
             container_name: 容器名称（默认: code）
         """
+        # Debug: 打印连接字符串信息（隐藏敏感信息）
+        log_debug(f"Connection string length: {len(connection_string)}")
+        log_debug(f"Connection string preview: {connection_string[:50]}...{connection_string[-20:]}")
+        
+        # 检查连接字符串是否包含必要的组件
+        required_parts = ['AccountName=', 'AccountKey=', 'DefaultEndpointsProtocol=']
+        for part in required_parts:
+            if part in connection_string:
+                log_debug(f"✓ Found {part}")
+            else:
+                log_error(f"✗ Missing {part}")
+        
         self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         self.container_name = container_name
         self.container_client = self.blob_service_client.get_container_client(container_name)
@@ -34,7 +66,7 @@ class BlobCache:
         try:
             self.container_client.get_container_properties()
         except Exception:
-            print(f"[INFO] Creating container: {container_name}")
+            log_info(f"Creating container: {container_name}")
             self.container_client.create_container()
     
     def _compute_file_hash(self, file_path: Path, chunk_size: int = 8192) -> str:
@@ -62,7 +94,7 @@ class BlobCache:
             hex_digest = sha256_hash.hexdigest()
             return f"sha256-{hex_digest}"
         except Exception as e:
-            print(f"[ERROR] Failed to compute hash for {file_path}: {e}")
+            log_error(f"Failed to compute hash for {file_path}: {e}")
             raise
     
     def _sanitize_branch_name(self, branch: str) -> str:
@@ -157,7 +189,7 @@ class BlobCache:
         """
         # 检查是否已存在（去重）
         if self._content_exists(content_hash):
-            print(f"[INFO] Content object already exists: {content_hash} (deduplicated)")
+            log_info(f"Content object already exists: {content_hash} (deduplicated)")
             return True
         
         blob_path = self._get_content_object_path(content_hash)
@@ -169,10 +201,10 @@ class BlobCache:
         try:
             with open(file_path, 'rb') as data:
                 blob_client.upload_blob(data, overwrite=False)
-            print(f"[INFO] Uploaded content object: {content_hash}")
+            log_info(f"Uploaded content object: {content_hash}")
             return True
         except Exception as e:
-            print(f"[ERROR] Failed to upload content object {content_hash}: {e}")
+            log_error(f"Failed to upload content object {content_hash}: {e}")
             return False
     
     def _download_content_object(self, content_hash: str, local_path: Path) -> bool:
@@ -201,7 +233,7 @@ class BlobCache:
                 f.write(data.readall())
             return True
         except Exception as e:
-            print(f"[ERROR] Failed to download content object {content_hash}: {e}")
+            log_error(f"Failed to download content object {content_hash}: {e}")
             return False
     
     def _update_branch_latest(self, project_id: str, branch: str, commit_sha: str, metadata: dict) -> bool:
@@ -236,10 +268,10 @@ class BlobCache:
                 json.dumps(latest_info, indent=2),
                 overwrite=True
             )
-            print(f"[INFO] Updated latest.json for {branch}: {commit_sha}")
+            log_info(f"Updated latest.json for {branch}: {commit_sha}")
             return True
         except Exception as e:
-            print(f"[ERROR] Failed to update latest.json: {e}")
+            log_error(f"Failed to update latest.json: {e}")
             return False
     
     def _get_branch_latest(self, project_id: str, branch: str) -> Optional[dict]:
@@ -311,10 +343,10 @@ class BlobCache:
                 json.dumps(fork_info, indent=2),
                 overwrite=True
             )
-            print(f"[INFO] Recorded branch fork: {new_branch} <- {base_branch}@{base_commit[:8]}")
+            log_info(f"Recorded branch fork: {new_branch} <- {base_branch}@{base_commit[:8]}")
             return True
         except Exception as e:
-            print(f"[ERROR] Failed to record branch fork: {e}")
+            log_error(f"Failed to record branch fork: {e}")
             return False
     
     def _get_base_branch_info(self, project_id: str, branch: str) -> Optional[dict]:
@@ -397,13 +429,13 @@ class BlobCache:
                 "base_branch": "..." (仅跨分支时)
             }
         """
-        print(f"[INFO] Searching for best cache: {project_id}/{branch}@{commit_sha[:8]}")
+        log_info(f"Searching for best cache: {project_id}/{branch}@{commit_sha[:8]}")
         
         # === Level 1: 精确匹配（当前 commit） ===
-        print("[INFO] Level 1: Checking exact match...")
+        log_info("Level 1: Checking exact match...")
         metadata = self._get_metadata(project_id, branch, commit_sha)
         if metadata:
-            print(f"[INFO] ✓ Found exact match: {commit_sha[:8]}")
+            log_info(f"✓ Found exact match: {commit_sha[:8]}")
             return {
                 "found": True,
                 "commit_sha": commit_sha,
@@ -413,10 +445,10 @@ class BlobCache:
         
         # === Level 2: 父 commit（增量更新） ===
         if parent_commit:
-            print(f"[INFO] Level 2: Checking parent commit {parent_commit[:8]}...")
+            log_info(f"Level 2: Checking parent commit {parent_commit[:8]}...")
             metadata = self._get_metadata(project_id, branch, parent_commit)
             if metadata:
-                print(f"[INFO] ✓ Found parent commit: {parent_commit[:8]}")
+                log_info(f"✓ Found parent commit: {parent_commit[:8]}")
                 return {
                     "found": True,
                     "commit_sha": parent_commit,
@@ -425,13 +457,13 @@ class BlobCache:
                 }
         
         # === Level 3: 分支最新 commit ===
-        print("[INFO] Level 3: Checking branch latest...")
+        log_info("Level 3: Checking branch latest...")
         latest_info = self._get_branch_latest(project_id, branch)
         if latest_info and latest_info.get("commit_sha") != commit_sha:
             latest_commit = latest_info["commit_sha"]
             metadata = self._get_metadata(project_id, branch, latest_commit)
             if metadata:
-                print(f"[INFO] ✓ Found branch latest: {latest_commit[:8]}")
+                log_info(f"✓ Found branch latest: {latest_commit[:8]}")
                 return {
                     "found": True,
                     "commit_sha": latest_commit,
@@ -440,16 +472,16 @@ class BlobCache:
                 }
         
         # === Level 4: 基准分支（跨分支复用） ===
-        print("[INFO] Level 4: Checking base branch...")
+        log_info("Level 4: Checking base branch...")
         base_branch_info = self._get_base_branch_info(project_id, branch)
         if base_branch_info:
             base_branch = base_branch_info["base_branch"]
             base_commit = base_branch_info["base_commit"]
-            print(f"[INFO] Found base branch: {base_branch}@{base_commit[:8]}")
+            log_info(f"Found base branch: {base_branch}@{base_commit[:8]}")
             
             metadata = self._get_metadata(project_id, base_branch, base_commit)
             if metadata:
-                print(f"[INFO] ✓ Found base branch context: {base_branch}@{base_commit[:8]}")
+                log_info(f"✓ Found base branch context: {base_branch}@{base_commit[:8]}")
                 return {
                     "found": True,
                     "commit_sha": base_commit,
@@ -463,7 +495,7 @@ class BlobCache:
         # TODO: 实现 _find_content_similar_commit()
         
         # === Level 6: 未找到任何缓存 ===
-        print("[INFO] ✗ No cache found, will perform full analysis")
+        log_info("✗ No cache found, will perform full analysis")
         return {
             "found": False,
             "reuse_strategy": "full_analysis"
@@ -505,7 +537,7 @@ class BlobCache:
             成功返回 True
         """
         if not local_dir.exists():
-            print(f"[ERROR] Directory not found: {local_dir}")
+            log_error(f"Directory not found: {local_dir}")
             return False
         
         # 构建 parent 的 content_objects 索引（路径 → hash）
@@ -551,15 +583,15 @@ class BlobCache:
                     source = "inherited"
                     source_commit = parent_metadata.get("commit_sha", "unknown")
                     stats["inherited_files"] += 1
-                    print(f"[INFO] ✓ Inherited: {rel_path} (hash: {content_hash[:12]})")
+                    log_info(f"✓ Inherited: {rel_path} (hash: {content_hash[:12]})")
                 else:
                     # 内容已更新
                     source = "updated"
                     stats["updated_files"] += 1
-                    print(f"[INFO] ↻ Updated: {rel_path} (hash: {content_hash[:12]})")
+                    log_info(f"↻ Updated: {rel_path} (hash: {content_hash[:12]})")
             else:
                 stats["new_files"] += 1
-                print(f"[INFO] + New: {rel_path} (hash: {content_hash[:12]})")
+                log_info(f"+ New: {rel_path} (hash: {content_hash[:12]})")
             
             # 记录 content object 信息
             content_objects.append({
@@ -575,11 +607,11 @@ class BlobCache:
                 # 上传 content object
                 success = self._upload_content_object(file_path, content_hash)
                 if not success:
-                    print(f"[ERROR] Failed to upload content object: {content_hash}")
+                    log_error(f"Failed to upload content object: {content_hash}")
                     return False
                 stats["uploaded_objects"] += 1
             else:
-                print(f"[INFO] ✓ Content exists: {content_hash[:12]} (skipped upload)")
+                log_info(f"✓ Content exists: {content_hash[:12]} (skipped upload)")
         
         # 计算去重比率
         dedup_ratio = stats["inherited_files"] / stats["total_files"] if stats["total_files"] > 0 else 0
@@ -612,22 +644,22 @@ class BlobCache:
                 json.dumps(metadata, indent=2),
                 overwrite=True
             )
-            print(f"[INFO] ✓ Uploaded metadata: {metadata_path}")
+            log_info(f"✓ Uploaded metadata: {metadata_path}")
         except Exception as e:
-            print(f"[ERROR] Failed to upload metadata: {e}")
+            log_error(f"Failed to upload metadata: {e}")
             return False
         
         # 更新 branch latest.json
         self._update_branch_latest(project_id, branch, commit_sha, metadata)
         
         # 输出统计信息
-        print(f"\n[SUCCESS] Upload completed with deduplication:")
-        print(f"  Total files: {stats['total_files']}")
-        print(f"  Inherited: {stats['inherited_files']} (reused)")
-        print(f"  Updated: {stats['updated_files']}")
-        print(f"  New: {stats['new_files']}")
-        print(f"  Uploaded objects: {stats['uploaded_objects']}")
-        print(f"  Deduplication ratio: {dedup_ratio:.2%}")
+        log_info(f"\nSUCCESS: Upload completed with deduplication:")
+        log_info(f"  Total files: {stats['total_files']}")
+        log_info(f"  Inherited: {stats['inherited_files']} (reused)")
+        log_info(f"  Updated: {stats['updated_files']}")
+        log_info(f"  New: {stats['new_files']}")
+        log_info(f"  Uploaded objects: {stats['uploaded_objects']}")
+        log_info(f"  Deduplication ratio: {dedup_ratio:.2%}")
         
         return True
     
@@ -646,7 +678,7 @@ class BlobCache:
         Returns:
             成功返回 True
         """
-        print("[WARN] Using deprecated upload_context(), consider using upload_context_with_dedup()")
+        log_warn("Using deprecated upload_context(), consider using upload_context_with_dedup()")
         return self.upload_context_with_dedup(local_dir, project_id, branch, commit_sha)
     
     def download_context(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
@@ -667,16 +699,16 @@ class BlobCache:
         # 1. 下载 metadata.json
         metadata = self._get_metadata(project_id, branch, commit_sha)
         if not metadata:
-            print(f"[ERROR] No metadata found for {project_id}/{branch}/{commit_sha}")
+            log_error(f"No metadata found for {project_id}/{branch}/{commit_sha}")
             return False
         
         if "content_objects" not in metadata:
-            print("[WARN] Metadata does not contain content_objects, falling back to legacy download")
+            log_warn("Metadata does not contain content_objects, falling back to legacy download")
             return self._download_context_legacy(local_dir, project_id, branch, commit_sha)
         
         # 2. 批量下载 content objects
         content_objects = metadata["content_objects"]
-        print(f"[INFO] Downloading {len(content_objects)} files...")
+        log_info(f"Downloading {len(content_objects)} files...")
         
         downloaded_count = 0
         failed_count = 0
@@ -692,17 +724,17 @@ class BlobCache:
             # 下载 content object
             success = self._download_content_object(content_hash, local_file)
             if success:
-                print(f"[INFO] ✓ {file_path} (hash: {content_hash[:12]})")
+                log_info(f"✓ {file_path} (hash: {content_hash[:12]})")
                 downloaded_count += 1
             else:
-                print(f"[ERROR] ✗ Failed to download: {file_path}")
+                log_error(f"✗ Failed to download: {file_path}")
                 failed_count += 1
         
         if failed_count > 0:
-            print(f"[WARN] Downloaded {downloaded_count}/{len(content_objects)} files ({failed_count} failed)")
+            log_warn(f"Downloaded {downloaded_count}/{len(content_objects)} files ({failed_count} failed)")
             return False
         
-        print(f"[SUCCESS] Downloaded {downloaded_count} files")
+        log_info(f"SUCCESS Downloaded {downloaded_count} files")
         return True
     
     def _download_context_legacy(self, local_dir: Path, project_id: str, branch: str, commit_sha: str) -> bool:
@@ -743,18 +775,18 @@ class BlobCache:
                     data = blob_client.download_blob()
                     f.write(data.readall())
                 
-                print(f"[INFO] Downloaded: {rel_path}")
+                log_info(f"Downloaded: {rel_path}")
                 downloaded_count += 1
             
             if downloaded_count == 0:
-                print(f"[INFO] No cached context found for {project_id}/{branch}/{commit_sha}")
+                log_info(f"No cached context found for {project_id}/{branch}/{commit_sha}")
                 return False
             
-            print(f"[SUCCESS] Downloaded {downloaded_count} files")
+            log_info(f"SUCCESS: Downloaded {downloaded_count} files")
             return True
             
         except Exception as e:
-            print(f"[ERROR] Failed to download context: {e}")
+            log_error(f"Failed to download context: {e}")
             return False
     
     def find_latest_context(self, project_id: str, branch: str) -> Optional[str]:
@@ -789,7 +821,7 @@ class BlobCache:
             return sorted(commits)[-1]
             
         except Exception as e:
-            print(f"[ERROR] Failed to find latest context: {e}")
+            log_error(f"Failed to find latest context: {e}")
             return None
 
 
@@ -817,7 +849,7 @@ def main():
     
     if args.action == 'upload':
         if not args.local_dir or not args.commit:
-            print("[ERROR] --local-dir and --commit are required for upload")
+            log_error(" --local-dir and --commit are required for upload")
             sys.exit(1)
         
         # 查找父 commit 的 metadata（用于去重）
@@ -825,7 +857,7 @@ def main():
         if args.parent_commit:
             parent_metadata = cache._get_metadata(args.project_id, args.branch, args.parent_commit)
             if parent_metadata:
-                print(f"[INFO] Found parent metadata: {args.parent_commit[:8]}")
+                log_info(f"Found parent metadata: {args.parent_commit[:8]}")
         
         success = cache.upload_context_with_dedup(
             Path(args.local_dir),
@@ -838,7 +870,7 @@ def main():
     
     elif args.action == 'download':
         if not args.local_dir or not args.commit:
-            print("[ERROR] --local-dir and --commit are required for download")
+            log_error(" --local-dir and --commit are required for download")
             sys.exit(1)
         
         success = cache.download_context(
@@ -852,15 +884,15 @@ def main():
     elif args.action == 'find':
         commit = cache.find_latest_context(args.project_id, args.branch)
         if commit:
-            print(commit)
+            print(commit, file=sys.stderr)
             sys.exit(0)
         else:
-            print(f"[INFO] No cache found for {args.project_id}/{args.branch}")
+            log_info(f"No cache found for {args.project_id}/{args.branch}")
             sys.exit(1)
     
     elif args.action == 'find-best':
         if not args.commit:
-            print("[ERROR] --commit is required for find-best")
+            log_error(" --commit is required for find-best")
             sys.exit(1)
         
         result = cache.find_best_context(
@@ -876,7 +908,7 @@ def main():
     
     elif args.action == 'record-fork':
         if not args.base_branch or not args.base_commit:
-            print("[ERROR] --base-branch and --base-commit are required for record-fork")
+            log_error(" --base-branch and --base-commit are required for record-fork")
             sys.exit(1)
         
         success = cache.record_branch_fork(
