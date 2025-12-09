@@ -83,6 +83,16 @@ class CopilotClient:
         
         logger.debug(f"Calling copilot, prompt size: {len(full_prompt)} chars")
         
+        # 确保 GITHUB_TOKEN 环境变量被传递给子进程
+        # Copilot CLI 需要 GITHUB_TOKEN 或 GH_TOKEN 进行认证
+        env = os.environ.copy()
+        
+        # 调试：记录关键环境变量（不打印实际值）
+        github_token = env.get('GITHUB_TOKEN', '')
+        gh_token = env.get('GH_TOKEN', '')
+        logger.debug(f"GITHUB_TOKEN set: {bool(github_token)}, length: {len(github_token)}")
+        logger.debug(f"GH_TOKEN set: {bool(gh_token)}, length: {len(gh_token)}")
+        
         try:
             result = subprocess.run(
                 cmd,
@@ -90,7 +100,8 @@ class CopilotClient:
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
-                cwd=cwd
+                cwd=cwd,
+                env=env  # 显式传递环境变量
             )
             
             if result.returncode == 0:
