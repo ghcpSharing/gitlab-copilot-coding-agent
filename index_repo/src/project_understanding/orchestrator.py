@@ -37,7 +37,7 @@ class OrchestratorConfig:
     agent_max_retries: int = 2
     
     # 并行配置
-    parallel_agents: bool = True  # 是否并行执行专家 Agents
+    parallel_agents: bool = False  # 暂时禁用并行，避免并发调用 Copilot 导致 rate limit
     max_workers: int = 5  # 最大并行数
     
     # Review 配置
