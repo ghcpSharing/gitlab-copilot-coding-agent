@@ -103,7 +103,10 @@ mr_review:
           export ENABLE_PROJECT_UNDERSTANDING=false
         else
           # 克隆目标仓库到项目特定目录
-          CLONE_URL="https://oauth2:${UPSTREAM_GITLAB_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git"
+          # 使用 GITLAB_TOKEN（webhook 传递的标准 token）
+          # URL encode token 以处理特殊字符
+          ENCODED_TOKEN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${GITLAB_TOKEN}', safe=''))")
+          CLONE_URL="https://oauth2:${ENCODED_TOKEN}@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git"
           echo "[INFO] Cloning from: https://oauth2:***@${UPSTREAM_GITLAB_BASE_URL#https://}/${UPSTREAM_PROJECT_PATH}.git"
           
           git clone "${CLONE_URL}" "${REPO_DIR}" || {
