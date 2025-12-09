@@ -19,7 +19,7 @@ test_project_understanding:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "test_project_understanding"
-  image: nikadwang.azurecr.io/copilot-runner:latest
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
   script:
     - copilot --version
     - cd index_repo/src
@@ -37,7 +37,7 @@ issue_workflow:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "issue_assignee"
-  image: nikadwang.azurecr.io/copilot-runner:latest
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -59,7 +59,7 @@ mr_update:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_note"
-  image: nikadwang.azurecr.io/copilot-runner:latest
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -76,7 +76,7 @@ mr_review:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_reviewer"
-  image: nikadwang.azurecr.io/copilot-runner:latest
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
   variables:
     ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
     AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
