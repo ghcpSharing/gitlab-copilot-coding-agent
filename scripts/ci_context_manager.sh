@@ -144,18 +144,15 @@ run_incremental_update() {
     
     # 2. 检测变更
     log_info "Detecting changes: ${CACHE_COMMIT:0:8}..${CURRENT_COMMIT:0:8}"
-    cd "${REPO_DIR}"
-    python3 ../scripts/detect_changes.py \
-        --repo . \
+    python3 scripts/detect_changes.py \
+        --repo "${REPO_DIR}" \
         --base-commit "${CACHE_COMMIT}" \
         --current-commit "${CURRENT_COMMIT}" \
-        --output ../changes.json || {
+        --output changes.json || {
         log_error "Failed to detect changes, falling back to full analysis"
-        cd ..
         export CACHE_STRATEGY="full_analysis"
         return 1
     }
-    cd ..
     
     # 显示变更统计
     AFFECTED_MODULES=$(python3 -c "import json; data=json.load(open('changes.json')); print(', '.join(data.get('affected_modules', [])))")
@@ -167,7 +164,9 @@ run_incremental_update() {
     
     # 3. 执行增量更新
     log_info "Running incremental analysis..."
-    cd index_repo/src
+    
+    # 在主仓库根目录运行（Copilot CLI 认证与当前 git 仓库绑定）
+    export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
     
     # 使用 Orchestrator 的增量更新 API
     python3 -c "
@@ -181,7 +180,7 @@ config = OrchestratorConfig(
 )
 
 orchestrator = Orchestrator(
-    workspace=Path('../../${REPO_DIR}'),
+    workspace=Path('${REPO_DIR}'),
     config=config,
     repo_id='${PROJECT_ID}',
     branch='${BRANCH}',
@@ -190,8 +189,8 @@ orchestrator = Orchestrator(
 
 try:
     context = orchestrator.run_incremental_update(
-        base_context_dir=Path('../../${REPO_DIR}/.copilot.base'),
-        changes_json_path=Path('../../changes.json'),
+        base_context_dir=Path('${REPO_DIR}/.copilot.base'),
+        changes_json_path=Path('changes.json'),
         update_modules=None  # Auto-detect
     )
     print('[SUCCESS] Incremental update completed')
@@ -201,12 +200,9 @@ except Exception as e:
     exit(1)
 " || {
         log_error "Incremental update failed, falling back to full analysis"
-        cd ../..
         export CACHE_STRATEGY="full_analysis"
         return 1
     }
-    
-    cd ../..
     
     log_info "✓ Incremental update completed successfully"
     return 0
@@ -216,19 +212,19 @@ except Exception as e:
 run_full_analysis() {
     log_info "Running full project analysis..."
     
-    cd index_repo/src
+    # 在主仓库根目录运行（Copilot CLI 认证与当前 git 仓库绑定）
+    # 使用 PYTHONPATH 导入 project_understanding 模块
+    export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
     python3 -m project_understanding.cli \
-        "../../${REPO_DIR}" \
-        --output-dir "../../${REPO_DIR}/.copilot" \
+        "${REPO_DIR}" \
+        --output-dir "${REPO_DIR}/.copilot" \
         --output-file project_context.md \
         --no-cache \
         --timeout 3600 \
         -v || {
         log_error "Full analysis failed"
-        cd ../..
         return 1
     }
-    cd ../..
     
     log_info "✓ Full analysis completed"
     return 0

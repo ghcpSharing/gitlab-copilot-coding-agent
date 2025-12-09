@@ -89,12 +89,13 @@ class Orchestrator:
         self.commit_sha = commit_sha
         
         # 创建共享的 Copilot 客户端
-        # 重要：working_dir 必须设置为目标项目目录，Copilot CLI 需要在正确的项目上下文中运行
+        # 注意：不设置 working_dir，让 Copilot 在当前工作目录运行
+        # Copilot CLI 认证与 git 仓库绑定，在克隆的目标仓库中可能无法认证
         self.client = CopilotClient(
             timeout=self.config.agent_timeout,
             model=self.config.agent_model,
-            max_retries=self.config.agent_max_retries,
-            working_dir=self.workspace  # 设置工作目录为目标项目
+            max_retries=self.config.agent_max_retries
+            # working_dir 不设置，使用调用时的当前目录
         )
         
         # Agent 配置
