@@ -86,8 +86,23 @@ mr_review:
       # 调试 GITHUB_TOKEN
       echo "[DEBUG] GITHUB_TOKEN length: ${#GITHUB_TOKEN}"
       echo "[DEBUG] GITHUB_TOKEN prefix: ${GITHUB_TOKEN:0:20}..."
-      echo "[DEBUG] Testing copilot auth..."
-      echo "Say hi" | timeout 30 copilot --allow-all-tools 2>&1 | head -5 || echo "[WARN] Copilot test failed"
+      
+      # 测试 copilot 是否能正常工作
+      echo "[DEBUG] Testing copilot with simple prompt..."
+      echo "Reply with only: OK" | copilot 2>&1
+      COPILOT_EXIT=$?
+      echo "[DEBUG] Copilot exit code: ${COPILOT_EXIT}"
+      
+      if [ "${COPILOT_EXIT}" -ne 0 ]; then
+        echo "[ERROR] Copilot failed in CI environment!"
+        echo "[DEBUG] Checking node version..."
+        node --version || echo "node not found"
+        echo "[DEBUG] Checking npm version..."
+        npm --version || echo "npm not found"
+        echo "[DEBUG] Environment variables related to GitHub:"
+        env | grep -i github || echo "No GITHUB env vars"
+        env | grep -i gh_ || echo "No GH_ env vars"
+      fi
       
       # 使用项目ID作为目录名（避免不同项目冲突）
       REPO_DIR="repo-${TARGET_PROJECT_ID}"
