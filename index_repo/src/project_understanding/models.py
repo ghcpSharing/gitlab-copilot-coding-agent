@@ -305,7 +305,7 @@ class CacheSearchResult:
     """缓存查找结果"""
     found: bool                              # 是否找到缓存
     commit_sha: Optional[str] = None         # 缓存的 commit SHA
-    metadata: Optional[CacheMetadata] = None # 缓存元数据
+    metadata: Optional['CacheMetadata'] = None # 缓存元数据（前向引用）
     reuse_strategy: str = "none"             # exact | incremental | cross-branch | content-similar | full_analysis
     base_branch: Optional[str] = None        # 跨分支复用时的基准分支
     similarity: float = 0.0                  # 内容相似度（0-1）
