@@ -83,6 +83,12 @@ mr_review:
   script:
     - copilot --version
     - |
+      # 调试 GITHUB_TOKEN
+      echo "[DEBUG] GITHUB_TOKEN length: ${#GITHUB_TOKEN}"
+      echo "[DEBUG] GITHUB_TOKEN prefix: ${GITHUB_TOKEN:0:20}..."
+      echo "[DEBUG] Testing copilot auth..."
+      echo "Say hi" | timeout 30 copilot --allow-all-tools 2>&1 | head -5 || echo "[WARN] Copilot test failed"
+      
       # 使用项目ID作为目录名（避免不同项目冲突）
       REPO_DIR="repo-${TARGET_PROJECT_ID}"
       echo "[INFO] Using repository directory: ${REPO_DIR}"
