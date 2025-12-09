@@ -268,6 +268,7 @@ def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "SOURCE_BRANCH": source_branch,
         "TARGET_PROJECT_ID": str(target_project_id or ""),
         "TARGET_PROJECT_PATH": target_project_path,
+        "UPSTREAM_PROJECT_PATH": target_project_path,  # Alias for CI context manager
         "TARGET_MR_IID": str(mr_iid),
         "TARGET_MR_ID": str(mr_id),
         "MR_TITLE": mr_title,
