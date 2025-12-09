@@ -83,20 +83,6 @@ mr_review:
   script:
     - copilot --version
     - |
-      # 调试 GITHUB_TOKEN
-      echo "[DEBUG] GITHUB_TOKEN length: ${#GITHUB_TOKEN}"
-      echo "[DEBUG] GITHUB_TOKEN prefix: ${GITHUB_TOKEN:0:20}..."
-      
-      # 测试 copilot 不带 --allow-all-tools
-      echo "[DEBUG] Test 1: copilot without --allow-all-tools..."
-      echo "Reply with only: OK" | copilot 2>&1
-      echo "[DEBUG] Exit code (no flags): $?"
-      
-      # 测试 copilot 带 --allow-all-tools
-      echo "[DEBUG] Test 2: copilot WITH --allow-all-tools..."
-      echo "Reply with only: OK" | copilot --allow-all-tools 2>&1
-      echo "[DEBUG] Exit code (--allow-all-tools): $?"
-      
       # 使用项目ID作为目录名（避免不同项目冲突）
       REPO_DIR="repo-${TARGET_PROJECT_ID}"
       echo "[INFO] Using repository directory: ${REPO_DIR}"
@@ -148,6 +134,18 @@ mr_review:
             # Fallback: 在根目录运行（不要 cd 到 index_repo/src）
             export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
             python3 -m project_understanding.cli "${REPO_DIR}" --output-dir "${REPO_DIR}/.copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
+            
+            # Fallback 模式也需要上传到 Azure
+            if [ -d "${REPO_DIR}/.copilot" ] && [ -n "${AZURE_STORAGE_CONNECTION_STRING}" ]; then
+              echo "[INFO] Uploading context to Azure Blob Storage (fallback mode)..."
+              python3 scripts/blob_cache.py upload \
+                --connection-string "${AZURE_STORAGE_CONNECTION_STRING}" \
+                --project-id "${TARGET_PROJECT_ID}" \
+                --branch "${TARGET_BRANCH}" \
+                --commit "$(cd ${REPO_DIR} && git rev-parse HEAD)" \
+                --parent-commit "$(cd ${REPO_DIR} && git rev-parse HEAD~1 2>/dev/null || echo '0000000000000000000000000000000000000000')" \
+                --local-dir "${REPO_DIR}/.copilot" || echo "[WARN] Failed to upload context to Azure"
+            fi
           }
         else
           # 无 Azure 连接时，直接执行完整分析

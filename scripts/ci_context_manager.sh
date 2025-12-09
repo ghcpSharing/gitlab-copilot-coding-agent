@@ -303,7 +303,7 @@ main() {
         
         "full_analysis"|*)
             log_info "Strategy: Full analysis - Analyzing entire project"
-            run_full_analysis
+            run_full_analysis || log_warn "Full analysis had issues, but continuing..."
             ;;
     esac
     
