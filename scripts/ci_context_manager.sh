@@ -215,9 +215,10 @@ run_full_analysis() {
     # 在主仓库根目录运行（Copilot CLI 认证与当前 git 仓库绑定）
     # 使用 PYTHONPATH 导入 project_understanding 模块
     export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
+    # 注意：--output-dir 是相对于 workspace 的路径，所以用 .copilot 而不是 ${REPO_DIR}/.copilot
     python3 -m project_understanding.cli \
         "${REPO_DIR}" \
-        --output-dir "${REPO_DIR}/.copilot" \
+        --output-dir ".copilot" \
         --output-file project_context.md \
         --no-cache \
         --timeout 3600 \

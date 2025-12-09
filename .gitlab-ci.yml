@@ -135,7 +135,8 @@ mr_review:
             # Fallback: 在根目录运行（不要 cd 到 index_repo/src）
             export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
             echo "[INFO] Running project_understanding.cli in fallback mode..."
-            python3 -m project_understanding.cli "${REPO_DIR}" --output-dir "${REPO_DIR}/.copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
+            # 注意：--output-dir 是相对于 workspace 的路径，所以用 .copilot 而不是 ${REPO_DIR}/.copilot
+            python3 -m project_understanding.cli "${REPO_DIR}" --output-dir ".copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
             
             # 检查 .copilot 目录是否存在
             echo "[DEBUG] Checking ${REPO_DIR}/.copilot directory..."
@@ -159,7 +160,8 @@ mr_review:
           # 无 Azure 连接时，直接执行完整分析
           echo "[INFO] Azure Blob Storage not configured, running full analysis..."
           export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
-          python3 -m project_understanding.cli "${REPO_DIR}" --output-dir "${REPO_DIR}/.copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
+          # 注意：--output-dir 是相对于 workspace 的路径
+          python3 -m project_understanding.cli "${REPO_DIR}" --output-dir ".copilot" --output-file project_context.md --no-cache --timeout 3600 -v || echo "[WARN] Project understanding failed, continuing..."
         fi
         
         echo "[INFO] Project understanding completed for ${REPO_DIR}"
