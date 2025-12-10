@@ -145,8 +145,8 @@ mr_review:
             # Fallback 模式也需要上传到 Azure
             if [ -d "${REPO_DIR}/.copilot" ] && [ -n "${AZURE_STORAGE_CONNECTION_STRING}" ]; then
               echo "[INFO] Uploading context to Azure Blob Storage (fallback mode)..."
+              # 使用环境变量传递连接字符串，避免 shell 转义问题
               python3 scripts/blob_cache.py upload \
-                --connection-string "${AZURE_STORAGE_CONNECTION_STRING}" \
                 --project-id "${TARGET_PROJECT_ID}" \
                 --branch "${TARGET_BRANCH}" \
                 --commit "$(cd ${REPO_DIR} && git rev-parse HEAD)" \

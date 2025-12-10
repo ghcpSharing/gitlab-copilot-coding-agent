@@ -829,10 +829,11 @@ class BlobCache:
 def main():
     """CLI 入口"""
     import argparse
+    import os
     
     parser = argparse.ArgumentParser(description='Azure Blob Storage cache manager for project context')
     parser.add_argument('action', choices=['upload', 'download', 'find', 'find-best', 'record-fork'], help='Action to perform')
-    parser.add_argument('--connection-string', required=True, help='Azure Storage connection string')
+    parser.add_argument('--connection-string', help='Azure Storage connection string (or set AZURE_STORAGE_CONNECTION_STRING env var)')
     parser.add_argument('--container', default='code', help='Container name (default: code)')
     parser.add_argument('--project-id', required=True, help='GitLab project ID')
     parser.add_argument('--branch', required=True, help='Branch name')
@@ -846,7 +847,13 @@ def main():
     
     args = parser.parse_args()
     
-    cache = BlobCache(args.connection_string, args.container)
+    # 优先使用命令行参数，否则从环境变量读取
+    connection_string = args.connection_string or os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    if not connection_string:
+        log_error("Azure Storage connection string not provided. Use --connection-string or set AZURE_STORAGE_CONNECTION_STRING env var")
+        sys.exit(1)
+    
+    cache = BlobCache(connection_string, args.container)
     
     if args.action == 'upload':
         if not args.local_dir or not args.commit:
