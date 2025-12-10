@@ -926,9 +926,10 @@ def main():
             args.parent_commit
         )
         
-        # 输出 JSON 格式结果
-        print(json.dumps(result, indent=2))
-        sys.exit(0 if result["found"] else 1)
+        # 输出 JSON 格式结果（不带 indent 以便解析）
+        print(json.dumps(result))
+        # find-best 总是 exit 0，因为 "未找到缓存" 不是错误
+        sys.exit(0)
     
     elif args.action == 'record-fork':
         if not args.base_branch or not args.base_commit:

@@ -103,7 +103,12 @@ find_best_cache() {
         --project-id "${PROJECT_ID}" \
         --branch "${BRANCH}" \
         --commit "${CURRENT_COMMIT}" \
-        --parent-commit "${PARENT_COMMIT}" 2>/dev/null || echo '{"found": false}')
+        --parent-commit "${PARENT_COMMIT}" 2>&1 | tail -1)
+    
+    # 如果结果为空或不是有效 JSON，使用默认值
+    if [ -z "${CACHE_RESULT}" ] || ! echo "${CACHE_RESULT}" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
+        CACHE_RESULT='{"found": false, "reuse_strategy": "full_analysis"}'
+    fi
     
     log_info "Cache lookup result: ${CACHE_RESULT}"
     
