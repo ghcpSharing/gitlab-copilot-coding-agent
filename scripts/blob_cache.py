@@ -59,16 +59,32 @@ class BlobCache:
             else:
                 log_error(f"✗ Missing {part}")
         
-        self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        try:
+            self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        except Exception as e:
+            log_error(f"Failed to create BlobServiceClient: {e}")
+            raise
+            
         self.container_name = container_name
-        self.container_client = self.blob_service_client.get_container_client(container_name)
+        
+        try:
+            self.container_client = self.blob_service_client.get_container_client(container_name)
+        except Exception as e:
+            log_error(f"Failed to get container client: {e}")
+            raise
         
         # 确保容器存在
         try:
             self.container_client.get_container_properties()
-        except Exception:
-            log_info(f"Creating container: {container_name}")
-            self.container_client.create_container()
+            log_debug(f"Container '{container_name}' exists")
+        except Exception as e:
+            log_info(f"Creating container: {container_name} (reason: {e})")
+            try:
+                self.container_client.create_container()
+                log_info(f"Container '{container_name}' created successfully")
+            except Exception as create_err:
+                log_error(f"Failed to create container: {create_err}")
+                raise
     
     def _compute_file_hash(self, file_path: Path, chunk_size: int = 8192) -> str:
         """
