@@ -926,7 +926,7 @@ def main():
             args.parent_commit
         )
         
-        # 输出 JSON 格式结果（不带 indent 以便解析）
+        # 输出 JSON 格式结果（单行，方便 shell 解析）
         print(json.dumps(result))
         # find-best 总是 exit 0，因为 "未找到缓存" 不是错误
         sys.exit(0)

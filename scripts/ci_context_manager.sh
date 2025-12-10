@@ -10,9 +10,6 @@ PROJECT_ID="${TARGET_PROJECT_ID}"
 BRANCH="${TARGET_BRANCH:-main}"
 CURRENT_COMMIT="${CI_COMMIT_SHA}"
 PARENT_COMMIT="${CI_COMMIT_BEFORE_SHA}"
-
-# 确保 Python 子进程能读取到 Azure 连接字符串
-export AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}"
 AZURE_CONNECTION="${AZURE_STORAGE_CONNECTION_STRING}"
 
 # ============= 函数定义 =============
@@ -67,8 +64,8 @@ detect_new_branch() {
         if [ -n "${AZURE_CONNECTION}" ]; then
             log_info "Recording branch fork relationship..."
             cd ..
-            # 使用环境变量传递连接字符串
             python3 scripts/blob_cache.py record-fork \
+                --connection-string "${AZURE_CONNECTION}" \
                 --project-id "${PROJECT_ID}" \
                 --branch "${BRANCH}" \
                 --base-branch "${BASE_BRANCH}" \
@@ -98,12 +95,13 @@ find_best_cache() {
         return 1
     fi
     
-    # 调用 find-best 命令
+    # 调用 find-best 命令（只取最后一行 JSON，忽略日志）
     CACHE_RESULT=$(python3 scripts/blob_cache.py find-best \
+        --connection-string "${AZURE_CONNECTION}" \
         --project-id "${PROJECT_ID}" \
         --branch "${BRANCH}" \
         --commit "${CURRENT_COMMIT}" \
-        --parent-commit "${PARENT_COMMIT}" 2>&1 | tail -1)
+        --parent-commit "${PARENT_COMMIT}" 2>&1 | grep -E '^\{' | tail -1)
     
     # 如果结果为空或不是有效 JSON，使用默认值
     if [ -z "${CACHE_RESULT}" ] || ! echo "${CACHE_RESULT}" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
@@ -139,6 +137,7 @@ run_incremental_update() {
     # 1. 下载基准缓存
     log_info "Downloading base context from ${CACHE_COMMIT:0:8}..."
     python3 scripts/blob_cache.py download \
+        --connection-string "${AZURE_CONNECTION}" \
         --project-id "${PROJECT_ID}" \
         --branch "${BRANCH}" \
         --commit "${CACHE_COMMIT}" \
@@ -253,6 +252,7 @@ upload_cache_with_dedup() {
     
     # 上传时使用去重功能
     python3 scripts/blob_cache.py upload \
+        --connection-string "${AZURE_CONNECTION}" \
         --project-id "${PROJECT_ID}" \
         --branch "${BRANCH}" \
         --commit "${CURRENT_COMMIT}" \
@@ -289,6 +289,7 @@ main() {
         "exact")
             log_info "Strategy: Exact match - Using cached context directly"
             python3 scripts/blob_cache.py download \
+                --connection-string "${AZURE_CONNECTION}" \
                 --project-id "${PROJECT_ID}" \
                 --branch "${BRANCH}" \
                 --commit "${CACHE_COMMIT}" \
