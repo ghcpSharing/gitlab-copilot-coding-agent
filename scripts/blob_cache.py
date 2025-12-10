@@ -582,7 +582,7 @@ class BlobCache:
             
             stats["total_files"] += 1
             
-            # 计算相对路径
+            # 计算相对路径（相对于 local_dir 的父目录，保持兼容性）
             rel_path = str(file_path.relative_to(local_dir.parent))
             
             # 计算 content hash
@@ -733,6 +733,11 @@ class BlobCache:
         for obj in content_objects:
             file_path = obj["file_path"]
             content_hash = obj["content_hash"]
+            
+            # 兼容性处理：如果 file_path 以 .copilot/ 开头，去掉这个前缀
+            # 因为上传时 rel_path 是相对于 local_dir.parent 的
+            if file_path.startswith(".copilot/"):
+                file_path = file_path[len(".copilot/"):]
             
             # 目标本地文件路径
             local_file = local_dir / file_path

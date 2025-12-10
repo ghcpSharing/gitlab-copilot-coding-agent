@@ -181,7 +181,8 @@ from project_understanding.orchestrator import Orchestrator, OrchestratorConfig
 config = OrchestratorConfig(
     agent_timeout=3600,
     enable_cache=False,
-    output_dir='.copilot'
+    output_dir='.copilot',
+    output_file='project_context.md'
 )
 
 orchestrator = Orchestrator(
