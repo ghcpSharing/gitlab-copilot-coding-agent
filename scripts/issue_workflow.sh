@@ -70,24 +70,67 @@ PLAN_PROMPT=$(load_prompt "plan_todo" \
   "issue_description=${ORIGINAL_NEEDS}")
 
 echo "[INFO] Invoking Copilot to generate plan.json (timeout: 3600s)..."
-if timeout 3600 copilot -p "$PLAN_PROMPT" --allow-all-tools > copilot_output.log 2>&1; then
-  echo "[INFO] Copilot execution completed"
-else
-  EXIT_CODE=$?
-  if [ $EXIT_CODE -eq 124 ]; then
-    echo "[ERROR] Copilot timed out after 3600 seconds" >&2
+
+# Retry logic for Copilot plan generation
+MAX_RETRIES=3
+RETRY_DELAY=10
+RETRY_COUNT=0
+SUCCESS=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  RETRY_COUNT=$((RETRY_COUNT + 1))
+  echo "[INFO] Attempt $RETRY_COUNT/$MAX_RETRIES..."
+
+  if timeout 3600 copilot -p "$PLAN_PROMPT" --allow-all-tools > copilot_output.log 2>&1; then
+    echo "[INFO] Copilot execution completed"
+    SUCCESS=true
+    break
   else
-    echo "[ERROR] Copilot failed with exit code ${EXIT_CODE}" >&2
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 124 ]; then
+      echo "[ERROR] Copilot timed out after 3600 seconds" >&2
+      cat copilot_output.log >&2
+      exit 1
+    else
+      echo "[WARN] Copilot failed with exit code ${EXIT_CODE} on attempt $RETRY_COUNT" >&2
+      cat copilot_output.log >&2
+
+      # Check if plan.json was created despite the error
+      if [ -f plan.json ]; then
+        echo "[INFO] Found plan.json despite error, attempting to continue..." >&2
+        SUCCESS=true
+        break
+      fi
+
+      if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        echo "[INFO] Retrying in ${RETRY_DELAY} seconds..." >&2
+        sleep $RETRY_DELAY
+      fi
+    fi
   fi
-  cat copilot_output.log >&2
+done
+
+if [ "$SUCCESS" = false ]; then
+  echo "[ERROR] Failed to generate plan after $MAX_RETRIES attempts" >&2
   exit 1
 fi
 
 echo "[INFO] Checking for plan.json..."
 if [ ! -f plan.json ]; then
   echo "[ERROR] plan.json not found. Copilot did not create the expected file." >&2
-  echo "Copilot output:" >&2
+  echo "" >&2
+  echo "========================================" >&2
+  echo "Copilot Output Log:" >&2
+  echo "========================================" >&2
   cat copilot_output.log >&2
+  echo "" >&2
+  echo "========================================" >&2
+  echo "Possible causes:" >&2
+  echo "1. API response incomplete (missing finish_reason)" >&2
+  echo "2. Network connectivity issues" >&2
+  echo "3. API rate limiting" >&2
+  echo "4. Prompt parsing errors" >&2
+  echo "========================================" >&2
   exit 1
 fi
 

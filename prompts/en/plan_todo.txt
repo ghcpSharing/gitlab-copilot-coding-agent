@@ -31,4 +31,4 @@ Example JSON structure to write to plan.json:
 }
 ```
 
-Write the JSON file now. Do not output anything else.
+Please write the plan.json file with the structured plan. You can briefly acknowledge the task, then create the file.
