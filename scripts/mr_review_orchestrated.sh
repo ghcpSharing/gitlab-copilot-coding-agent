@@ -340,14 +340,22 @@ t = templates.get(lang, templates['zh'])
 
 # 只发布critical和major的inline comments
 high_priority = [f for f in all_findings if f.get('severity') in ['critical', 'major']]
+print(f"[INFO] Total findings: {len(all_findings)}")
+print(f"[INFO] Critical: {len([f for f in all_findings if f.get('severity') == 'critical'])}")
+print(f"[INFO] Major: {len([f for f in all_findings if f.get('severity') == 'major'])}")
+print(f"[INFO] Minor: {len([f for f in all_findings if f.get('severity') == 'minor'])}")
+print(f"[INFO] Suggestion: {len([f for f in all_findings if f.get('severity') == 'suggestion'])}")
 print(f"[INFO] Posting {len(high_priority)} high-priority inline comments")
 
 posted_count = 0
+skipped_no_location = 0
 for finding in high_priority[:50]:  # 最多50个inline comments
     file_path = finding.get('file', '')
     line = finding.get('line', 0)
     
     if not file_path or line <= 0:
+        skipped_no_location += 1
+        print(f"[DEBUG] Skipped finding (no location): {finding.get('title', '')[:50]}")
         continue
     
     severity = finding.get('severity', 'major')
@@ -399,11 +407,11 @@ _{t['category']}: {finding.get('category', 'general')}_
             posted_count += 1
             print(f"[INFO] Posted inline comment on {file_path}:{line}")
         else:
-            print(f"[WARN] Failed to post on {file_path}:{line}")
+            print(f"[WARN] Failed to post on {file_path}:{line} - {result.stderr[:200] if result.stderr else result.stdout[:200]}")
     except Exception as e:
         print(f"[WARN] Error posting inline comment: {e}")
 
-print(f"[INFO] Posted {posted_count} inline comments")
+print(f"[INFO] Summary: Posted {posted_count}, Skipped (no location) {skipped_no_location}")
 PYSCRIPT
   
   echo "[INFO] Inline comments posted"
