@@ -128,6 +128,28 @@ mr_note_orchestrated:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
     - bash scripts/mr_note_orchestrated.sh
+
+# Job for MR review via @mention (e.g., "@copilot review this code")
+mr_review_note:
+  stage: implement
+  tags:
+    - k8s
+    - copilot
+  rules:
+    - if: $TRIGGER_TYPE == "mr_review_note"
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
+  # Note: Uses same workflow as mr_reviewer but triggered via @mention
+  script:
+    - copilot --version
+    - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
+    - bash scripts/mr_review_orchestrated.sh
+  artifacts:
+    when: always
+    paths:
+      - review_plan.json
+      - inline_comments.json
+      - review_summary.md
+      - repo-*/.copilot/
   artifacts:
     when: always
     paths:

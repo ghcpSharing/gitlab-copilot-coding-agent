@@ -171,10 +171,19 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     # Extract instruction from note (remove agent mention prefix)
     agent_mention = f"@{settings.copilot_agent_username}"
     instruction = note_text.replace(agent_mention, "").strip()
+    
+    # Check if this is a review request - if so, use mr_reviewer workflow
+    review_keywords = ['review', 'check', '审查', '检查', 'レビュー', '리뷰']
+    instruction_lower = instruction.lower()
+    is_review_request = any(kw in instruction_lower for kw in review_keywords)
+
+    # Determine trigger type based on instruction content
+    trigger_type = "mr_review_note" if is_review_request else "mr_note"
 
     variables = {
-        "TRIGGER_TYPE": "mr_note",
+        "TRIGGER_TYPE": trigger_type,
         "MR_NOTE_INSTRUCTION": instruction,
+        "IS_REVIEW_REQUEST": "true" if is_review_request else "false",
         "TARGET_REPO_URL": target_repo_url,
         "TARGET_BRANCH": target_branch,
         "SOURCE_BRANCH": source_branch,
@@ -186,13 +195,18 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "TARGET_MR_ID": str(mr_id),
         "MR_TITLE": mr.get("title", ""),
         "MR_URL": mr.get("url", ""),
+        "MR_DESCRIPTION": mr.get("description", ""),
+        "MR_STATE": mr.get("state", ""),
         "MR_AUTHOR_ID": str(mr.get("author_id", "")),
+        "NOTE_ID": str(note_attrs.get("id", "")),
+        "NOTE_URL": note_attrs.get("url", ""),
         "NOTE_AUTHOR_ID": str(user.get("id", "")),
         "NOTE_AUTHOR_USERNAME": user.get("username", ""),
         "COPILOT_AGENT_USERNAME": settings.copilot_agent_username,
         "COPILOT_AGENT_COMMIT_EMAIL": settings.copilot_agent_commit_email,
         "COPILOT_LANGUAGE": settings.copilot_language,
         "USE_ORCHESTRATED_MR_NOTE": "true" if settings.use_orchestrated_mr_note else "false",
+        "ENABLE_INLINE_REVIEW_COMMENTS": "true" if settings.enable_inline_review_comments else "false",
         "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
         "AZURE_STORAGE_CONNECTION_STRING": settings.azure_storage_connection_string,
     }
