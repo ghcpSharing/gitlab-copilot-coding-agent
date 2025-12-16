@@ -98,7 +98,8 @@ class Settings:
         self.copilot_agent_commit_email = os.getenv("COPILOT_AGENT_COMMIT_EMAIL", "copilot@github.com")
         self.enable_inline_review_comments = os.getenv("ENABLE_INLINE_REVIEW_COMMENTS", "true").lower() in {"true", "1", "yes", "on"}
         self.use_orchestrated_review = os.getenv("USE_ORCHESTRATED_REVIEW", "false").lower() in {"true", "1", "yes", "on"}
-        self.enable_project_understanding = os.getenv("ENABLE_PROJECT_UNDERSTANDING", "false").lower() in {"true", "1", "yes", "on"}
+        self.use_orchestrated_issue = os.getenv("USE_ORCHESTRATED_ISSUE", "true").lower() in {"true", "1", "yes", "on"}
+        self.enable_project_understanding = os.getenv("ENABLE_PROJECT_UNDERSTANDING", "true").lower() in {"true", "1", "yes", "on"}
         self.copilot_language = os.getenv("COPILOT_LANGUAGE", "en")
         self.azure_storage_connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
 
@@ -370,6 +371,7 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "TARGET_BRANCH": target_branch,
         "TARGET_PROJECT_ID": str(target_project_id or ""),
         "TARGET_PROJECT_PATH": target_project_path or "",
+        "UPSTREAM_PROJECT_PATH": target_project_path or "",  # Alias for CI context manager
         "TARGET_ISSUE_IID": str(issue.get("iid", "")),
         "TARGET_ISSUE_ID": str(issue.get("id", "")),
         "ISSUE_AUTHOR_ID": str(issue.get("author_id", "")),
@@ -382,6 +384,9 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "COPILOT_AGENT_USERNAME": settings.copilot_agent_username,
         "COPILOT_AGENT_COMMIT_EMAIL": settings.copilot_agent_commit_email,
         "COPILOT_LANGUAGE": settings.copilot_language,
+        # Orchestrated issue workflow settings
+        "USE_ORCHESTRATED_ISSUE": "true" if settings.use_orchestrated_issue else "false",
+        "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
     }
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "TARGET_ISSUE_IID") if not variables.get(k)]

@@ -36,7 +36,7 @@ issue_workflow:
     - k8s
     - copilot
   rules:
-    - if: $TRIGGER_TYPE == "issue_assignee"
+    - if: $TRIGGER_TYPE == "issue_assignee" && $USE_ORCHESTRATED_ISSUE != "true"
   image: nikadwang.azurecr.io/copilot-runner:v0.0.1
   script:
     - copilot --version
@@ -50,6 +50,31 @@ issue_workflow:
       - repo-*/todo_completed.md
       - repo-*/patch_raw.txt
       - repo-*/copilot.patch
+
+# Job for orchestrated issue workflow (with project understanding)
+issue_workflow_orchestrated:
+  stage: implement
+  tags:
+    - k8s
+    - copilot
+  rules:
+    - if: $TRIGGER_TYPE == "issue_assignee" && $USE_ORCHESTRATED_ISSUE == "true"
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
+  variables:
+    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
+    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  script:
+    - copilot --version
+    - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
+    - bash scripts/issue_workflow_orchestrated.sh
+  artifacts:
+    when: always
+    paths:
+      - issue_plan.json
+      - execution_results.json
+      - mr.json
+      - repo-*/.copilot/
+      - repo-*/.copilot_tasks/
 
 # Job for MR note workflow
 mr_update:
