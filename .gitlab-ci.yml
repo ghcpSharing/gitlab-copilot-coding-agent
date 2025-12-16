@@ -76,6 +76,31 @@ issue_workflow_orchestrated:
       - repo-*/.copilot/
       - repo-*/.copilot_tasks/
 
+# Job for Issue note mention workflow (triggered by @copilot in Issue comments)
+issue_note_workflow:
+  stage: implement
+  tags:
+    - k8s
+    - copilot
+  rules:
+    - if: $TRIGGER_TYPE == "issue_note"
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
+  variables:
+    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
+    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  script:
+    - copilot --version
+    - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
+    - bash scripts/issue_note_workflow.sh
+  artifacts:
+    when: always
+    paths:
+      - mr.json
+      - mr_description.txt
+      - copilot_output.log
+      - repo-*/.copilot/
+      - implementation_prompt.txt
+
 # Job for MR note workflow
 mr_update:
   stage: implement

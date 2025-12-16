@@ -202,6 +202,96 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     return variables
 
 
+def _extract_issue_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
+    """Extract variables from Issue note event for pipeline.
+
+    This handles @copilot mentions in Issue comments, triggering a workflow that:
+    1. Creates a tracking issue (optional)
+    2. Creates a copilot/ prefixed branch
+    3. Implements the requested changes
+    4. Creates a MR back to the original branch
+
+    Raises:
+        ValueError: If required fields are missing or copilot-agent not mentioned.
+    """
+    note_attrs = payload.get("object_attributes") or {}
+    note_text = note_attrs.get("note", "")
+
+    # Check if copilot agent is mentioned
+    agent_mention = f"@{settings.copilot_agent_username}"
+    if agent_mention not in note_text:
+        raise ValueError(f"{agent_mention} not mentioned in note")
+
+    issue = payload.get("issue") or {}
+    project = payload.get("project") or {}
+    user = payload.get("user") or {}
+    repository = payload.get("repository") or {}
+
+    target_repo_url = (
+        project.get("http_url")
+        or project.get("git_http_url")
+        or repository.get("url")
+        or ""
+    )
+
+    target_project_id = project.get("id") or issue.get("project_id")
+    target_project_path = project.get("path_with_namespace") or repository.get("name")
+
+    target_branch = (
+        project.get("default_branch")
+        or repository.get("default_branch")
+        or settings.default_target_branch
+    )
+
+    # Extract instruction from note (remove agent mention prefix)
+    instruction = note_text.replace(agent_mention, "").strip()
+
+    # Generate branch name from issue IID and instruction
+    issue_iid = issue.get("iid", "")
+    branch_suffix = instruction[:30].lower().replace(" ", "-").replace("/", "-") if instruction else "task"
+    branch_suffix = ''.join(c for c in branch_suffix if c.isalnum() or c == '-')
+    new_branch_name = f"copilot/issue-{issue_iid}-{branch_suffix}"
+
+    variables = {
+        "TRIGGER_TYPE": "issue_note",
+        "ISSUE_NOTE_INSTRUCTION": instruction,
+        "TARGET_REPO_URL": target_repo_url,
+        "TARGET_BRANCH": target_branch,
+        "NEW_BRANCH_NAME": new_branch_name,
+        "TARGET_PROJECT_ID": str(target_project_id or ""),
+        "TARGET_PROJECT_PATH": target_project_path or "",
+        "UPSTREAM_PROJECT_PATH": target_project_path or "",
+        "TARGET_ISSUE_IID": str(issue_iid),
+        "TARGET_ISSUE_ID": str(issue.get("id", "")),
+        "ISSUE_TITLE": issue.get("title", ""),
+        "ISSUE_URL": issue.get("url", ""),
+        "ISSUE_DESCRIPTION": issue.get("description", ""),
+        "ISSUE_STATE": issue.get("state", ""),
+        "NOTE_ID": str(note_attrs.get("id", "")),
+        "NOTE_URL": note_attrs.get("url", ""),
+        "NOTE_AUTHOR_ID": str(user.get("id", "")),
+        "NOTE_AUTHOR_USERNAME": user.get("username", ""),
+        "COPILOT_AGENT_USERNAME": settings.copilot_agent_username,
+        "COPILOT_AGENT_COMMIT_EMAIL": settings.copilot_agent_commit_email,
+        "COPILOT_LANGUAGE": settings.copilot_language,
+        "USE_ORCHESTRATED_ISSUE": "true" if settings.use_orchestrated_issue else "false",
+        "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
+    }
+
+    missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "TARGET_ISSUE_IID") if not variables.get(k)]
+    if missing:
+        raise ValueError(f"Missing required issue/project fields: {', '.join(missing)}")
+
+    logger.debug(
+        "Extracted Issue note vars project_id=%s issue_iid=%s branch=%s",
+        variables["TARGET_PROJECT_ID"],
+        variables["TARGET_ISSUE_IID"],
+        variables["NEW_BRANCH_NAME"],
+    )
+
+    return variables
+
+
 def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     """Extract variables from MR reviewer assignment event for pipeline.
 
@@ -444,6 +534,9 @@ def issue_webhook() -> Any:
             if noteable_type == "MergeRequest":
                 logger.info("Processing MR note event")
                 vars_for_pipeline = _extract_mr_note_variables(payload)
+            elif noteable_type == "Issue":
+                logger.info("Processing Issue note event")
+                vars_for_pipeline = _extract_issue_note_variables(payload)
             else:
                 logger.debug("Ignoring note on %s", noteable_type)
                 return jsonify({"status": "ignored", "reason": f"Note on {noteable_type} not supported"}), 202
