@@ -101,14 +101,14 @@ issue_note_workflow:
       - repo-*/.copilot/
       - implementation_prompt.txt
 
-# Job for MR note workflow
+# Job for MR note workflow (legacy single-stage)
 mr_update:
   stage: implement
   tags:
     - k8s
     - copilot
   rules:
-    - if: $TRIGGER_TYPE == "mr_note"
+    - if: $TRIGGER_TYPE == "mr_note" && $USE_ORCHESTRATED_MR_NOTE != "true"
   image: nikadwang.azurecr.io/copilot-runner:v0.0.1
   script:
     - copilot --version
@@ -117,6 +117,33 @@ mr_update:
   artifacts:
     paths:
       - repo-*/patch_raw.txt
+
+# Job for MR note orchestrated workflow (multi-stage with project understanding)
+mr_note_orchestrated:
+  stage: implement
+  tags:
+    - k8s
+    - copilot
+  rules:
+    - if: $TRIGGER_TYPE == "mr_note" && $USE_ORCHESTRATED_MR_NOTE == "true"
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.1
+  variables:
+    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
+    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  script:
+    - copilot --version
+    - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
+    - bash scripts/mr_note_orchestrated.sh
+  artifacts:
+    when: always
+    paths:
+      - mr_task_plan.json
+      - mr_execution_results.json
+      - planner.log
+      - executor.log
+      - context_manager.log
+      - repo-*/.copilot/
+      - repo-*/.copilot_tasks/
 
 # Job for MR reviewer workflow
 mr_review:
