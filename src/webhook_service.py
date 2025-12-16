@@ -194,6 +194,7 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "COPILOT_LANGUAGE": settings.copilot_language,
         "USE_ORCHESTRATED_MR_NOTE": "true" if settings.use_orchestrated_mr_note else "false",
         "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
+        "AZURE_STORAGE_CONNECTION_STRING": settings.azure_storage_connection_string,
     }
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "SOURCE_BRANCH", "TARGET_MR_IID") if not variables.get(k)]
@@ -290,6 +291,7 @@ def _extract_issue_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "COPILOT_LANGUAGE": settings.copilot_language,
         "USE_ORCHESTRATED_ISSUE": "true" if settings.use_orchestrated_issue else "false",
         "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
+        "AZURE_STORAGE_CONNECTION_STRING": settings.azure_storage_connection_string,
     }
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "TARGET_ISSUE_IID") if not variables.get(k)]
@@ -390,10 +392,8 @@ def _extract_mr_reviewer_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         "USE_ORCHESTRATED_REVIEW": "true" if settings.use_orchestrated_review else "false",
         "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
         "COPILOT_LANGUAGE": settings.copilot_language,
+        "AZURE_STORAGE_CONNECTION_STRING": settings.azure_storage_connection_string,
     }
-    
-    # Note: AZURE_STORAGE_CONNECTION_STRING should be configured in GitLab CI/CD Variables
-    # not passed from webhook service (separation of concerns)
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "SOURCE_BRANCH", "TARGET_MR_IID") if not variables.get(k)]
     if missing:
@@ -491,6 +491,7 @@ def _extract_variables(payload: Dict[str, Any]) -> Dict[str, str]:
         # Orchestrated issue workflow settings
         "USE_ORCHESTRATED_ISSUE": "true" if settings.use_orchestrated_issue else "false",
         "ENABLE_PROJECT_UNDERSTANDING": "true" if settings.enable_project_understanding else "false",
+        "AZURE_STORAGE_CONNECTION_STRING": settings.azure_storage_connection_string,
     }
 
     missing = [k for k in ("TARGET_REPO_URL", "TARGET_PROJECT_ID", "TARGET_ISSUE_IID") if not variables.get(k)]
