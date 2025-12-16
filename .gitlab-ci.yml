@@ -60,9 +60,7 @@ issue_workflow_orchestrated:
   rules:
     - if: $TRIGGER_TYPE == "issue_assignee" && $USE_ORCHESTRATED_ISSUE == "true"
   image: nikadwang.azurecr.io/copilot-runner:v0.0.1
-  variables:
-    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
-    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -85,9 +83,7 @@ issue_note_workflow:
   rules:
     - if: $TRIGGER_TYPE == "issue_note"
   image: nikadwang.azurecr.io/copilot-runner:v0.0.1
-  variables:
-    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
-    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -127,9 +123,7 @@ mr_note_orchestrated:
   rules:
     - if: $TRIGGER_TYPE == "mr_note" && $USE_ORCHESTRATED_MR_NOTE == "true"
   image: nikadwang.azurecr.io/copilot-runner:v0.0.1
-  variables:
-    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
-    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -154,9 +148,7 @@ mr_review:
   rules:
     - if: $TRIGGER_TYPE == "mr_reviewer"
   image: nikadwang.azurecr.io/copilot-runner:v0.0.1
-  variables:
-    ENABLE_PROJECT_UNDERSTANDING: "${ENABLE_PROJECT_UNDERSTANDING:-true}"
-    AZURE_STORAGE_CONNECTION_STRING: "${AZURE_STORAGE_CONNECTION_STRING}"
+  # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
     - |
