@@ -139,6 +139,12 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     """
     note_attrs = payload.get("object_attributes") or {}
     note_text = note_attrs.get("note", "")
+    user = payload.get("user") or {}
+    
+    # Ignore notes from the bot itself to prevent infinite loops
+    note_author = user.get("username", "")
+    if note_author == settings.copilot_agent_username:
+        raise ValueError(f"Ignoring note from bot user {note_author}")
 
     # Check if copilot agent is mentioned
     agent_mention = f"@{settings.copilot_agent_username}"
@@ -147,7 +153,6 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
 
     mr = payload.get("merge_request") or {}
     project = payload.get("project") or {}
-    user = payload.get("user") or {}
 
     source_branch = mr.get("source_branch", "")
     target_branch = mr.get("target_branch", "")
@@ -220,6 +225,12 @@ def _extract_issue_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     """
     note_attrs = payload.get("object_attributes") or {}
     note_text = note_attrs.get("note", "")
+    user = payload.get("user") or {}
+    
+    # Ignore notes from the bot itself to prevent infinite loops
+    note_author = user.get("username", "")
+    if note_author == settings.copilot_agent_username:
+        raise ValueError(f"Ignoring note from bot user {note_author}")
 
     # Check if copilot agent is mentioned
     agent_mention = f"@{settings.copilot_agent_username}"
@@ -228,7 +239,6 @@ def _extract_issue_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
 
     issue = payload.get("issue") or {}
     project = payload.get("project") or {}
-    user = payload.get("user") or {}
     repository = payload.get("repository") or {}
 
     target_repo_url = (
