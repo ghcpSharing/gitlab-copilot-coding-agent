@@ -256,8 +256,6 @@ Working Directory: {workspace}
             duration_seconds=duration,
             error=f"{type(e).__name__}: {str(e)} (see error.log)"
         )
-            error=str(e)
-        )
 
 
 def execute_plan(
