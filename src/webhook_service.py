@@ -173,9 +173,21 @@ def _extract_mr_note_variables(payload: Dict[str, Any]) -> Dict[str, str]:
     instruction = note_text.replace(agent_mention, "").strip()
     
     # Check if this is a review request - if so, use mr_reviewer workflow
-    review_keywords = ['review', 'check', '审查', '检查', 'レビュー', '리뷰']
+    # Must be careful: "apply review suggestions" is implementation, not review
     instruction_lower = instruction.lower()
-    is_review_request = any(kw in instruction_lower for kw in review_keywords)
+    
+    # Keywords that indicate user wants to IMPLEMENT/FIX something (takes priority)
+    implementation_keywords = ['fix', 'apply', 'implement', 'add', 'create', 'update', 'change', 'modify',
+                               '修复', '应用', '实现', '添加', '创建', '更新', '修改', '改一下', '帮我改']
+    
+    # Keywords that indicate user wants CODE REVIEW only
+    review_keywords = ['review', 'check', '审查', '检查', 'レビュー', '리뷰']
+    
+    has_implementation_intent = any(kw in instruction_lower for kw in implementation_keywords)
+    has_review_intent = any(kw in instruction_lower for kw in review_keywords)
+    
+    # Implementation intent takes priority (e.g., "apply the review suggestions" -> implementation)
+    is_review_request = has_review_intent and not has_implementation_intent
 
     # Determine trigger type based on instruction content
     trigger_type = "mr_review_note" if is_review_request else "mr_note"
