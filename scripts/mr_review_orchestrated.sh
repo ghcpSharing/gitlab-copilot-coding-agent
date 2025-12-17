@@ -82,12 +82,87 @@ fi
 
 cd "${REPO_DIR}"
 
-# 项目理解上下文已经在 .copilot/project_context.md（如果启用）
-if [ -f ".copilot/project_context.md" ]; then
-  echo "[INFO] Project context available at .copilot/project_context.md"
+echo "[INFO] Fetching branches..."
+git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {
+  echo "[ERROR] Failed to fetch branches" >&2
+  exit 1
+}
+
+# 检出源分支
+git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1 || {
+  echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
+  exit 1
+}
+
+# ==========================================
+# 加载项目理解上下文
+# ==========================================
+echo ""
+echo "=== Loading Project Context ==="
+echo ""
+
+cd "${REPO_ROOT}"
+
+PROJECT_CONTEXT_FILE=""
+
+if [ "${ENABLE_PROJECT_UNDERSTANDING:-true}" = "true" ]; then
+  echo "[INFO] Loading project understanding context..."
+  
+  # 设置上下文管理器需要的变量
+  export PROJECT_ID="${TARGET_PROJECT_ID}"
+  export BRANCH="${SOURCE_BRANCH}"
+  export CI_COMMIT_SHA=$(cd "${REPO_DIR}" && git rev-parse HEAD)
+  export CI_COMMIT_BEFORE_SHA=$(cd "${REPO_DIR}" && git rev-parse HEAD~1 2>/dev/null || echo "${CI_COMMIT_SHA}")
+  export CURRENT_COMMIT="${CI_COMMIT_SHA}"
+  export PARENT_COMMIT="${CI_COMMIT_BEFORE_SHA}"
+  export AZURE_CONNECTION="${AZURE_STORAGE_CONNECTION_STRING:-}"
+  
+  if [ -n "${AZURE_CONNECTION}" ]; then
+    echo "[INFO] Running CI Context Manager..."
+    if bash scripts/ci_context_manager.sh 2>&1 | tee context_manager.log; then
+      if [ -f "${REPO_DIR}/.copilot/project_context.md" ]; then
+        PROJECT_CONTEXT_FILE="${REPO_DIR}/.copilot/project_context.md"
+        echo "[INFO] ✓ Project context loaded from cache"
+      fi
+    else
+      echo "[WARN] Context manager had issues, continuing without cached context"
+    fi
+  fi
+  
+  # 如果没有缓存，运行完整分析
+  if [ -z "${PROJECT_CONTEXT_FILE}" ]; then
+    echo "[INFO] Running project analysis..."
+    export PYTHONPATH="${PWD}/index_repo/src:${PYTHONPATH:-}"
+    
+    if python3 -m project_understanding.cli \
+        "${REPO_DIR}" \
+        --output-dir ".copilot" \
+        --output-file project_context.md \
+        --no-cache \
+        --timeout 1800 \
+        -v 2>&1 | tee project_analysis.log; then
+      
+      if [ -f "${REPO_DIR}/.copilot/project_context.md" ]; then
+        PROJECT_CONTEXT_FILE="${REPO_DIR}/.copilot/project_context.md"
+        echo "[INFO] ✓ Project analysis completed"
+      fi
+    else
+      echo "[WARN] Project analysis failed, continuing without context"
+    fi
+  fi
+else
+  echo "[INFO] Project understanding disabled"
 fi
 
-echo "[INFO] Fetching branches..."
+if [ -n "${PROJECT_CONTEXT_FILE}" ]; then
+  echo "[INFO] Project context available at ${PROJECT_CONTEXT_FILE}"
+  echo "[INFO] Context size: $(wc -c < "${PROJECT_CONTEXT_FILE}") bytes"
+fi
+
+cd "${REPO_DIR}"
+
+echo ""
+echo "[INFO] On branch: $(git branch --show-current)"
 git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {
   echo "[ERROR] Failed to fetch branches" >&2
   exit 1
