@@ -415,6 +415,67 @@ class BlobCache:
         except Exception:
             return None
     
+    def _find_commit_in_other_branches(
+        self, 
+        project_id: str, 
+        current_branch: str, 
+        commit_sha: str
+    ) -> Optional[dict]:
+        """
+        在其他分支中查找相同 commit 的上下文
+        
+        用于新分支场景：如果从 main 创建 feature-x，且 commit 相同，
+        可以直接复用 main 分支的上下文，无需重新上传。
+        
+        Args:
+            project_id: 项目 ID
+            current_branch: 当前分支（排除）
+            commit_sha: 要查找的 commit SHA
+            
+        Returns:
+            找到返回 metadata 字典，否则返回 None
+        """
+        log_info(f"Searching for commit {commit_sha[:8]} in other branches...")
+        
+        # 常见的基准分支列表
+        common_branches = ['main', 'master', 'develop', 'dev']
+        
+        for branch in common_branches:
+            if branch == current_branch:
+                continue
+            
+            metadata = self._get_metadata(project_id, branch, commit_sha)
+            if metadata:
+                log_info(f"✓ Found commit in branch '{branch}'")
+                return metadata
+        
+        # 尝试从 base_branches.json 获取更多分支信息
+        try:
+            blob_path = f"{project_id}/_base_branches.json"
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=blob_path
+            )
+            data = blob_client.download_blob().readall()
+            base_branches = json.loads(data)
+            
+            # 检查所有记录的分支
+            for branch_name in base_branches.keys():
+                if branch_name == current_branch:
+                    continue
+                if branch_name in common_branches:  # 已检查过
+                    continue
+                    
+                metadata = self._get_metadata(project_id, branch_name, commit_sha)
+                if metadata:
+                    log_info(f"✓ Found commit in branch '{branch_name}'")
+                    return metadata
+        except Exception:
+            pass  # base_branches.json 不存在，跳过
+        
+        log_info(f"Commit {commit_sha[:8]} not found in other branches")
+        return None
+    
     def find_best_context(
         self,
         project_id: str,
@@ -556,6 +617,48 @@ class BlobCache:
         if not local_dir.exists():
             log_error(f"Directory not found: {local_dir}")
             return False
+        
+        # === 优化：检查当前分支是否已存在该 commit 的上下文 ===
+        existing_metadata = self._get_metadata(project_id, branch, commit_sha)
+        if existing_metadata:
+            log_info(f"✓ Context already exists for {branch}@{commit_sha[:8]}, skipping upload")
+            return True
+        
+        # === 优化：检查其他分支是否存在相同 commit 的上下文 ===
+        # 如果 commit 相同，可以直接创建引用（metadata 指向相同的 content objects）
+        cross_branch_metadata = self._find_commit_in_other_branches(project_id, branch, commit_sha)
+        if cross_branch_metadata:
+            source_branch = cross_branch_metadata.get("branch", "unknown")
+            log_info(f"✓ Found same commit in branch '{source_branch}', creating reference...")
+            
+            # 创建引用 metadata（复用 content_objects）
+            reference_metadata = {
+                "commit_sha": commit_sha,
+                "branch": branch,
+                "project_id": project_id,
+                "created_at": datetime.utcnow().isoformat() + "Z",
+                "content_objects": cross_branch_metadata.get("content_objects", []),
+                "stats": cross_branch_metadata.get("stats", {}),
+                "reference_from": {
+                    "branch": source_branch,
+                    "commit_sha": commit_sha
+                }
+            }
+            
+            # 上传引用 metadata
+            metadata_path = self._get_metadata_path(project_id, branch, commit_sha)
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=metadata_path
+            )
+            try:
+                blob_client.upload_blob(json.dumps(reference_metadata, indent=2), overwrite=True)
+                log_info(f"✓ Created reference metadata: {metadata_path}")
+                self._update_branch_latest(project_id, branch, commit_sha, reference_metadata)
+                return True
+            except Exception as e:
+                log_error(f"Failed to create reference metadata: {e}")
+                # Fall through to normal upload
         
         # 构建 parent 的 content_objects 索引（路径 → hash）
         parent_objects = {}
