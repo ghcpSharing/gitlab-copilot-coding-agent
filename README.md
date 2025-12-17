@@ -8,7 +8,7 @@
 
 一个由 GitHub Copilot CLI 和 GitLab CI/CD 驱动的全自动编码代理。该系统通过 Issue 指派、合并请求评论和审阅者指派，实现自主代码实现和智能代码审查。
 
-在原来上游的实现上通过多阶段的执行，在大型项目里的工作任务可以更加准确。 可以参考文档 [TECHNICAL_ARCHITECTURE](./docs/TECHNICAL_ARCHITECTURE.md) 及 [WORKFLOW_ARCHITECTURE]/(WORKFLOW_ARCHITECTURE.md)
+在原来上游的实现上加入了多阶段的执行，在大型项目里的工作任务可以更加准确。 可以参考文档 [TECHNICAL_ARCHITECTURE](./docs/TECHNICAL_ARCHITECTURE.md) 及 [WORKFLOW_ARCHITECTURE](WORKFLOW_ARCHITECTURE.md)
 
 ## ✨ 核心特性（多代理分支）
 
