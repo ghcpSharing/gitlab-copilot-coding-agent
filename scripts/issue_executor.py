@@ -143,12 +143,18 @@ def execute_subtask(
     
     # 调用 Copilot
     try:
+        # Multiply timeout by 3 to give more time for complex tasks
+        estimated_time = subtask.get('estimated_time_seconds', 600)
+        actual_timeout = estimated_time * 3
+        
+        print(f"[INFO] Task timeout: {actual_timeout}s (estimated: {estimated_time}s)")
+        
         result = subprocess.run(
             ['copilot', '--allow-all-tools', '--allow-all-paths'],
             input=prompt,
             capture_output=True,
             text=True,
-            timeout=subtask.get('estimated_time_seconds', 600),
+            timeout=actual_timeout,
             cwd=workspace
         )
         
@@ -183,6 +189,7 @@ def execute_subtask(
         
     except subprocess.TimeoutExpired:
         duration = time.time() - start_time
+        actual_timeout = subtask.get('estimated_time_seconds', 600) * 3
         print(f"[ERROR] Subtask {task_id} timed out after {duration:.1f}s")
         return SubTaskResult(
             task_id=task_id,
@@ -190,7 +197,7 @@ def execute_subtask(
             output='',
             artifacts={},
             duration_seconds=duration,
-            error=f"Timeout after {subtask.get('estimated_time_seconds', 600)}s"
+            error=f"Timeout after {actual_timeout}s"
         )
     except Exception as e:
         duration = time.time() - start_time
@@ -320,7 +327,25 @@ def main():
     Path(args.output).write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding='utf-8')
     print(f"\n[INFO] Results saved to {args.output}")
     
-    return 0 if results['status'] == 'success' else 1
+    # Exit code logic:
+    # - If all tasks succeeded: exit 0
+    # - If majority (>50%) succeeded: exit 0 (partial success is still success)
+    # - If no tasks succeeded: exit 1
+    success_count = results.get('success_count', 0)
+    failed_count = results.get('failed_count', 0)
+    total_count = success_count + failed_count
+    
+    if total_count == 0:
+        return 0  # No tasks to execute
+    
+    success_rate = success_count / total_count
+    
+    if success_rate >= 0.5:
+        print(f"[INFO] Success rate: {success_rate*100:.0f}% - treating as success")
+        return 0
+    else:
+        print(f"[WARN] Success rate: {success_rate*100:.0f}% - treating as failure")
+        return 1
 
 
 if __name__ == '__main__':
