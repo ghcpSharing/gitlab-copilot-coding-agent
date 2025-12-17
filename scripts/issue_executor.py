@@ -159,12 +159,18 @@ def execute_subtask(
         )
         
         output = result.stdout
+        stderr_output = result.stderr
         
         # 保存输出
         (subtask_dir / "output.txt").write_text(output, encoding='utf-8')
         
+        # 保存 stderr（如果有）
+        if stderr_output:
+            (subtask_dir / "stderr.txt").write_text(stderr_output, encoding='utf-8')
+        
         if result.returncode != 0:
             print(f"[WARN] Copilot returned non-zero: {result.returncode}")
+            print(f"[WARN] Stderr output saved to {subtask_dir / 'stderr.txt'}")
         
         # 检查是否有生成的文件
         artifacts = {}
@@ -187,27 +193,69 @@ def execute_subtask(
             duration_seconds=duration
         )
         
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         duration = time.time() - start_time
         actual_timeout = subtask.get('estimated_time_seconds', 600) * 3
         print(f"[ERROR] Subtask {task_id} timed out after {duration:.1f}s")
+        
+        # Save timeout error details
+        error_log = f"""Timeout Error Details:
+Task ID: {task_id}
+Task Title: {subtask.get('title', 'N/A')}
+Duration: {duration:.1f}s
+Configured Timeout: {actual_timeout}s
+Estimated Time: {subtask.get('estimated_time_seconds', 600)}s
+
+Command: copilot --allow-all-tools --allow-all-paths
+Working Directory: {workspace}
+
+Partial Output (if any):
+{e.stdout.decode('utf-8', errors='ignore') if e.stdout else 'No stdout captured'}
+
+Partial Stderr (if any):
+{e.stderr.decode('utf-8', errors='ignore') if e.stderr else 'No stderr captured'}
+"""
+        (subtask_dir / "timeout_error.log").write_text(error_log, encoding='utf-8')
+        print(f"[INFO] Timeout details saved to {subtask_dir / 'timeout_error.log'}")
+        
         return SubTaskResult(
             task_id=task_id,
             status='timeout',
             output='',
             artifacts={},
             duration_seconds=duration,
-            error=f"Timeout after {actual_timeout}s"
+            error=f"Timeout after {actual_timeout}s (see timeout_error.log)"
         )
     except Exception as e:
         duration = time.time() - start_time
         print(f"[ERROR] Subtask {task_id} failed: {e}")
+        
+        # Save error details
+        import traceback
+        error_log = f"""Error Details:
+Task ID: {task_id}
+Task Title: {subtask.get('title', 'N/A')}
+Duration: {duration:.1f}s
+Error Type: {type(e).__name__}
+Error Message: {str(e)}
+
+Traceback:
+{traceback.format_exc()}
+
+Command: copilot --allow-all-tools --allow-all-paths
+Working Directory: {workspace}
+"""
+        (subtask_dir / "error.log").write_text(error_log, encoding='utf-8')
+        print(f"[INFO] Error details saved to {subtask_dir / 'error.log'}")
+        
         return SubTaskResult(
             task_id=task_id,
             status='failed',
             output='',
             artifacts={},
             duration_seconds=duration,
+            error=f"{type(e).__name__}: {str(e)} (see error.log)"
+        )
             error=str(e)
         )
 
