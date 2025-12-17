@@ -389,10 +389,39 @@ else
 fi
 
 # ============================================================================
-# Step 8: 更新 Issue
+# Step 8: Upload Updated Project Context
 # ============================================================================
 echo ""
-echo "=== Phase 8: Post Completion ==="
+echo "=== Phase 8: Upload Updated Context ==="
+
+cd "${REPO_ROOT}"
+
+if [ "${CHANGES_PUSHED:-false}" = "true" ] && [ -n "${AZURE_STORAGE_CONNECTION_STRING:-}" ]; then
+  echo "[INFO] Uploading updated project context to cache..."
+  
+  NEW_COMMIT=$(cd "${REPO_DIR}" && git rev-parse HEAD)
+  PREV_COMMIT=$(cd "${REPO_DIR}" && git rev-parse HEAD~1 2>/dev/null || echo "${NEW_COMMIT}")
+  
+  python3 scripts/blob_cache.py upload \
+    --connection-string "${AZURE_STORAGE_CONNECTION_STRING}" \
+    --project-id "${TARGET_PROJECT_ID}" \
+    --branch "${NEW_BRANCH_NAME}" \
+    --commit "${NEW_COMMIT}" \
+    --parent-commit "${PREV_COMMIT}" \
+    --local-dir "${REPO_DIR}/.copilot" 2>&1 || {
+    echo "[WARN] Failed to upload context cache"
+  }
+  
+  echo "[INFO] ✓ Context cache updated for commit ${NEW_COMMIT:0:8}"
+else
+  echo "[INFO] Skipping context upload (no changes pushed or no Azure connection)"
+fi
+
+# ============================================================================
+# Step 9: Post Completion to Issue
+# ============================================================================
+echo ""
+echo "=== Phase 9: Post Completion ==="
 
 if [ -n "${NEW_MR_URL}" ]; then
   COMPLETION_BODY="✅ **Task Completed!**

@@ -5,7 +5,6 @@
 **目标**：使用 Python + Copilot CLI 实现多 Agent 协作的项目分析流程，带有质量 Review 环节。
 
 **关键约束**：
-- 不使用 Agent Framework（太重）
 - 使用 Copilot CLI 作为 LLM 后端
 - 纯 Python 实现流程编排
 - 支持 Review + 重试机制
@@ -616,23 +615,10 @@ fi
 # Planner prompt 中注入 PROJECT_CONTEXT
 ```
 
----
-
-## 9. 优势总结
-
-| 特性 | Agent Framework | 本方案 (Python + Bash + Copilot CLI) |
-|------|-----------------|--------------------------------------|
-| **复杂度** | 高（DI、Workflow、Executor） | 低（纯 Python 类 + Bash 脚本） |
-| **依赖** | agent_framework, Azure AI | subprocess, 现有 Bash 脚本 |
-| **调试** | 困难（异步、多线程） | 简单（同步、顺序执行、可打日志） |
-| **扩展** | 需要理解框架 | 添加 Agent 类 + Prompt 文件即可 |
-| **Review 机制** | 需自己实现 | 内置 Reviewer Agent + 重试 |
-| **与现有集成** | 需要改造 | 复用 `common.sh`，改动最小 |
-| **Copilot 调用** | 需要 API | 复用现有 CLI 调用方式 |
 
 ---
 
-## 10. 调用链路图
+## 9. 调用链路图
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐

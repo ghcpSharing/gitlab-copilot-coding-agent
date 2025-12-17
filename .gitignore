@@ -53,3 +53,6 @@ logs/
 hooks/
 .vscode/
 tmp/
+
+AGENTS.md
+k8s-runner/
