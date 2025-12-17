@@ -146,20 +146,16 @@ mr_review_note:
   artifacts:
     when: always
     paths:
+      - task_plan.json
+      - review_results.json
       - review_plan.json
-      - inline_comments.json
       - review_summary.md
-      - repo-*/.copilot/
-  artifacts:
-    when: always
-    paths:
-      - mr_task_plan.json
-      - mr_execution_results.json
-      - planner.log
-      - executor.log
+      - inline_comments.json
+      - full_diff.txt
       - context_manager.log
+      - project_analysis.log
       - repo-*/.copilot/
-      - repo-*/.copilot_tasks/
+      - repo-*/.review_tasks/
 
 # Job for MR reviewer workflow
 mr_review:
@@ -278,6 +274,13 @@ mr_review:
   artifacts:
     when: always
     paths:
+      - task_plan.json
+      - review_results.json
+      - review_summary.md
+      - full_diff.txt
+      - review_comment.txt
+      - context_manager.log
+      - project_analysis.log
       - repo-*/task_plan.json
       - repo-*/review_results.json
       - repo-*/review_summary.md
@@ -287,3 +290,4 @@ mr_review:
       - repo-*/review_summary.txt
       - repo-*/review_findings.json
       - repo-*/.copilot/
+      - repo-*/.review_tasks/
