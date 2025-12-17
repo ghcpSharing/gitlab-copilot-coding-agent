@@ -199,16 +199,73 @@ except:
 " 2>/dev/null || true)
 fi
 
+# 获取 MR 的讨论/评论历史（包括 review comments）
+echo "[INFO] Fetching MR discussions (review comments)..."
+MR_DISCUSSIONS=""
+if DISCUSSIONS_JSON=$(curl --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+    "${API}/merge_requests/${TARGET_MR_IID}/discussions" 2>/dev/null); then
+  MR_DISCUSSIONS=$(echo "${DISCUSSIONS_JSON}" | python3 -c "
+import json, sys
+try:
+    discussions = json.load(sys.stdin)
+    output_lines = []
+    for disc in discussions:
+        notes = disc.get('notes', [])
+        for note in notes:
+            author = note.get('author', {}).get('username', 'unknown')
+            body = note.get('body', '').strip()
+            note_type = note.get('type', '')
+            position = note.get('position', {})
+            
+            # Skip system notes and empty notes
+            if note.get('system', False) or not body:
+                continue
+            
+            # Format the note
+            if position and position.get('new_path'):
+                # This is a diff/inline comment (review comment)
+                file_path = position.get('new_path', '')
+                line = position.get('new_line') or position.get('old_line', '')
+                output_lines.append(f'### Review Comment by @{author}')
+                output_lines.append(f'**File**: \`{file_path}\` (line {line})')
+                output_lines.append(f'{body}')
+                output_lines.append('')
+            else:
+                # Regular comment
+                output_lines.append(f'### Comment by @{author}')
+                output_lines.append(f'{body}')
+                output_lines.append('')
+    
+    if output_lines:
+        print('\\n'.join(output_lines[-100:]))  # Last 100 lines to avoid too much context
+except Exception as e:
+    print(f'Error parsing discussions: {e}', file=sys.stderr)
+" 2>/dev/null || true)
+fi
+
+if [ -n "${MR_DISCUSSIONS}" ]; then
+  echo "[INFO] ✓ Found MR discussions/review comments"
+  echo "[DEBUG] Discussions preview (first 500 chars):"
+  echo "${MR_DISCUSSIONS}" | head -c 500
+  echo "..."
+else
+  echo "[INFO] No discussions found or failed to fetch"
+fi
+
 # 调用 planner 生成计划
 echo "[INFO] Generating task plan..."
 
-# 构建 Issue description，包含 MR 上下文
+# 构建 Issue description，包含 MR 上下文和讨论历史
 PLAN_DESCRIPTION="## MR Context
 
 **MR Title**: ${MR_TITLE:-MR !${TARGET_MR_IID}}
 **Source Branch**: ${SOURCE_BRANCH}
 **Target Branch**: ${TARGET_BRANCH}
 ${MR_DIFF_CONTEXT}
+
+## Previous Review Comments and Discussions
+
+${MR_DISCUSSIONS:-No previous discussions found.}
 
 ## User Request
 
