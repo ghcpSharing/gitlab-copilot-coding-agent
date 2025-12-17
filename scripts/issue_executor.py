@@ -17,7 +17,7 @@ from dataclasses import dataclass
 @dataclass
 class SubTaskResult:
     """子任务执行结果"""
-    task_id: str
+    Wtask_id: str
     status: str  # success, failed, timeout
     output: str
     artifacts: Dict
