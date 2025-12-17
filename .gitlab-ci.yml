@@ -19,7 +19,7 @@ test_project_understanding:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "test_project_understanding"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   script:
     - copilot --version
     - cd index_repo/src
@@ -37,7 +37,7 @@ issue_workflow:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "issue_assignee" && $USE_ORCHESTRATED_ISSUE != "true"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -59,7 +59,7 @@ issue_workflow_orchestrated:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "issue_assignee" && $USE_ORCHESTRATED_ISSUE == "true"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
@@ -82,7 +82,7 @@ issue_note_workflow:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "issue_note"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
@@ -105,7 +105,7 @@ mr_update:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_note" && $USE_ORCHESTRATED_MR_NOTE != "true"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   script:
     - copilot --version
     - export REPO_DIR="repo-${TARGET_PROJECT_ID}"
@@ -122,7 +122,7 @@ mr_note_orchestrated:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_note" && $USE_ORCHESTRATED_MR_NOTE == "true"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
@@ -137,7 +137,7 @@ mr_review_note:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_review_note"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   # Note: Uses same workflow as mr_reviewer but triggered via @mention
   script:
     - copilot --version
@@ -169,7 +169,7 @@ mr_review:
     - copilot
   rules:
     - if: $TRIGGER_TYPE == "mr_reviewer"
-  image: nikadwang.azurecr.io/copilot-runner:v0.0.2
+  image: nikadwang.azurecr.io/copilot-runner:v0.0.3
   # Note: AZURE_STORAGE_CONNECTION_STRING is passed from webhook trigger
   script:
     - copilot --version
