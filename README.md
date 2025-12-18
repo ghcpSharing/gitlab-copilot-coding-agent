@@ -8,6 +8,8 @@
 
 一个由 GitHub Copilot CLI 和 GitLab CI/CD 驱动的全自动编码代理。该系统通过 Issue 指派、合并请求评论和审阅者指派，实现自主代码实现和智能代码审查。
 
+在原来上游的实现上加入了多阶段的执行与项目理解跟进，在大型项目里的工作任务可以更加准确。 可以参考文档 [TECHNICAL_ARCHITECTURE](./docs/TECHNICAL_ARCHITECTURE.md) 及 [WORKFLOW_ARCHITECTURE](WORKFLOW_ARCHITECTURE.md)
+
 ## ✨ 核心特性（多代理分支）
 
 此分支 (`multi-agents`) 引入了高级功能：
@@ -18,10 +20,9 @@
 | 🧠 **智能任务规划** | 自动将复杂 Issue 分解为子任务，支持依赖分析 |
 | 💾 **Git风格上下文缓存** | 内容寻址存储（CAS）用于项目理解，支持5级回退策略 |
 | 🔀 **跨分支去重** | 当 commit 匹配时，跨分支复用缓存上下文 |
-| 🎯 **意图检测** | 智能路由 @mentions（实现关键词 vs 审查关键词） |
-| 📊 **弹性执行** | 3倍超时乘数、50%成功阈值、详细错误日志 |
 
-📖 **[技术架构文档](./docs/TECHNICAL_ARCHITECTURE.md)** - 深入了解多代理编排系统。
+
+
 
 ## 演示与示例
 **YouTube 演示视频**
@@ -34,11 +35,11 @@
 - [GitLab Copilot 编码代理 - 使用方法 11:24 – 通过评论让 Copilot 在合并请求中进行更新](https://www.youtube.com/watch?v=med7Bfff_m4&t=684s)
 
 **示例仓库**
-- 公开 GitLab 演示仓库 [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
-- Issue: [一个 Webhook 接收应用](https://gitlab.com/agentic-devops/app-repo-01/-/issues/21)
-- MR: [一个 Webhook 接收应用 (#21)](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26)
-- 通过评论更新 MR: [@copilot-agent 把 readme 改成西班牙语](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930260370)
-- 代码审查: [将 Copilot 指派为 MR 审阅者](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930279091)
+- 公开 GitLab 演示仓库 [一个示例应用仓库](https://gitlab.com/gh-copilot1/okr)
+- Issue: [Copilot 处理 Issue ](https://gitlab.com/gh-copilot1/okr/-/issues/10)
+- MR: [Copilot 将处理 Issue 的代码创建新的 MR](https://gitlab.com/gh-copilot1/okr/-/merge_requests/31)
+- 代码审查: [将 Copilot 指派为 MR 审阅者](https://gitlab.com/gh-copilot1/okr/-/merge_requests/31#note_2962392021)
+- 通过评论更新 MR: [@Copilot 接收 Review 意见代码](https://gitlab.com/gh-copilot1/okr/-/merge_requests/31#note_2962434908)
 
 ## 🏗️ 架构
 
@@ -431,8 +432,8 @@ Issue 指派给 Copilot → Webhook → 触发流水线 →
    - 确认 `GITHUB_TOKEN` 有效
    - 验证 Copilot 订阅状态
 
-2. **检查 Docker 镜像**
-   - 拉取最新镜像: `docker pull satomic/copilot-cli:latest`
+2. **检查 Runner 镜像**
+
 
 ## 📄 许可证
 
