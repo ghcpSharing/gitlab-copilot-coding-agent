@@ -36,10 +36,10 @@
 
 **示例仓库**
 - 公开 GitLab 演示仓库 [一个示例应用仓库](https://gitlab.com/gh-copilot1/okr)
-- Issue: [一个 Webhook 接收应用](https://gitlab.com/gh-copilot1/okr/-/issues/6)
-- MR: [一个 Webhook 接收应用 (#27)](https://gitlab.com/gh-copilot1/okr/-/merge_requests/27)
-- 代码审查: [将 Copilot 指派为 MR 审阅者](https://gitlab.com/gh-copilot1/okr/-/merge_requests/22)
-- - 通过评论更新 MR: [@Copilot 接收 Review 意见代码](https://gitlab.com/gh-copilot1/okr/-/merge_requests/22#note_2958981856)
+- Issue: [一个 Webhook 接收应用](https://gitlab.com/gh-copilot1/okr/-/issues/10)
+- MR: [一个 Webhook 接收应用](https://gitlab.com/gh-copilot1/okr/-/merge_requests/31)
+- 代码审查: [将 Copilot 指派为 MR 审阅者](https://gitlab.com/gh-copilot1/okr/-/merge_requests/31#note_2962392021)
+- 通过评论更新 MR: [@Copilot 接收 Review 意见代码](https://gitlab.com/gh-copilot1/okr/-/merge_requests/31#note_2962434908)
 
 ## 🏗️ 架构
 
