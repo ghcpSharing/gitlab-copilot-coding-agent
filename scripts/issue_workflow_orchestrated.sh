@@ -324,6 +324,10 @@ if [ "$HAS_CHANGES" = true ]; then
   echo "[DEBUG] Staged changes:"
   git diff --cached --stat
   
+  # 记录当前 HEAD
+  BEFORE_COMMIT=$(git rev-parse HEAD)
+  echo "[DEBUG] Current HEAD before commit: ${BEFORE_COMMIT}"
+  
   # 生成提交消息
   COMMIT_MSG="feat: implement issue #${TARGET_ISSUE_IID} via copilot orchestration
 
@@ -333,19 +337,52 @@ Implemented using multi-step orchestrated workflow with project understanding co
   
   echo "[INFO] Committing changes..."
   if git commit -m "$COMMIT_MSG"; then
+    AFTER_COMMIT=$(git rev-parse HEAD)
+    echo "[DEBUG] HEAD after commit: ${AFTER_COMMIT}"
+    
+    if [ "${BEFORE_COMMIT}" = "${AFTER_COMMIT}" ]; then
+      echo "[WARN] HEAD unchanged after commit - this should not happen"
+    fi
+    
     echo "[INFO] Pushing to ${NEW_BRANCH_NAME}..."
+    echo "[DEBUG] Local HEAD: $(git rev-parse HEAD)"
+    echo "[DEBUG] Remote HEAD: $(git rev-parse origin/${NEW_BRANCH_NAME} 2>/dev/null || echo 'not found')"
     
     PUSH_RETRY=0
     PUSH_SUCCESS=false
     
-    while [ $PUSH_RETRY -lt 3 ]; do
-      if git push --set-upstream origin "${NEW_BRANCH_NAME}" 2>&1; then
-        PUSH_SUCCESS=true
-        break
-      fi
-      PUSH_RETRY=$((PUSH_RETRY + 1))
-      sleep 5
-    done
+    # Check if we actually have something new to push
+    REMOTE_HEAD=$(git rev-parse "origin/${NEW_BRANCH_NAME}" 2>/dev/null || echo "none")
+    LOCAL_HEAD=$(git rev-parse HEAD)
+    
+    if [ "${LOCAL_HEAD}" = "${REMOTE_HEAD}" ]; then
+      echo "[WARN] Local and remote HEAD are the same - nothing new to push"
+      echo "[WARN] This may indicate the changes were already pushed or there's a branch issue"
+      PUSH_SUCCESS=true  # Mark as success since branch is in sync
+    else
+      while [ $PUSH_RETRY -lt 3 ]; do
+        PUSH_OUTPUT=$(git push --set-upstream origin "${NEW_BRANCH_NAME}" 2>&1)
+        PUSH_EXIT=$?
+        echo "$PUSH_OUTPUT"
+        
+        if [ $PUSH_EXIT -eq 0 ]; then
+          # Check if it actually pushed something
+          if echo "$PUSH_OUTPUT" | grep -q "Everything up-to-date"; then
+            echo "[WARN] Push reported 'Everything up-to-date' but commits differ"
+            echo "[WARN] Trying force push..."
+            if git push --force-with-lease origin "${NEW_BRANCH_NAME}" 2>&1; then
+              PUSH_SUCCESS=true
+              break
+            fi
+          else
+            PUSH_SUCCESS=true
+            break
+          fi
+        fi
+        PUSH_RETRY=$((PUSH_RETRY + 1))
+        sleep 5
+      done
+    fi
     
     if [ "$PUSH_SUCCESS" = false ]; then
       echo "[ERROR] Failed to push after 3 attempts" >&2
