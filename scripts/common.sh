@@ -183,6 +183,18 @@ robust_checkout() {
   
   echo "[INFO] Attempting to checkout branch: $branch"
   
+  # Clean up untracked files that might conflict with checkout
+  # (e.g., .copilot/ from project understanding pre-analysis)
+  if [[ -d ".copilot" ]]; then
+    echo "[INFO] Backing up .copilot directory before checkout..."
+    rm -rf "/tmp/.copilot_backup_$$" 2>/dev/null || true
+    mv .copilot "/tmp/.copilot_backup_$$" 2>/dev/null || true
+  fi
+  
+  # Also clean any other untracked files that git complains about
+  echo "[INFO] Cleaning untracked files that may conflict..."
+  git clean -fd 2>/dev/null || true
+  
   # Fetch latest from origin first
   echo "[INFO] Fetching from origin..."
   git fetch origin --prune 2>&1 || true
@@ -203,6 +215,11 @@ robust_checkout() {
       # Create local branch from current HEAD
       if git checkout -b "$branch" 2>&1; then
         echo "[SUCCESS] Checked out branch $branch (SHA: $sha)"
+        # Restore .copilot if it was backed up and doesn't exist in the branch
+        if [[ -d "/tmp/.copilot_backup_$$" ]] && [[ ! -d ".copilot" ]]; then
+          echo "[INFO] Restoring .copilot directory..."
+          mv "/tmp/.copilot_backup_$$" .copilot 2>/dev/null || true
+        fi
         return 0
       fi
     fi
@@ -214,6 +231,10 @@ robust_checkout() {
   if git fetch origin "refs/heads/$branch:refs/heads/$branch" 2>&1; then
     if git checkout "$branch" 2>&1; then
       echo "[SUCCESS] Checked out branch $branch via specific ref fetch"
+      # Restore .copilot if needed
+      if [[ -d "/tmp/.copilot_backup_$$" ]] && [[ ! -d ".copilot" ]]; then
+        mv "/tmp/.copilot_backup_$$" .copilot 2>/dev/null || true
+      fi
       return 0
     fi
   fi
@@ -223,6 +244,10 @@ robust_checkout() {
   git branch -D "$branch" 2>/dev/null || true
   if git checkout -b "$branch" --track "origin/$branch" 2>&1; then
     echo "[SUCCESS] Checked out branch $branch with --track"
+    # Restore .copilot if needed
+    if [[ -d "/tmp/.copilot_backup_$$" ]] && [[ ! -d ".copilot" ]]; then
+      mv "/tmp/.copilot_backup_$$" .copilot 2>/dev/null || true
+    fi
     return 0
   fi
 
@@ -231,5 +256,7 @@ robust_checkout() {
   git status 2>&1 >&2
   echo "[DEBUG] All remote branches:" >&2
   git branch -r 2>&1 >&2
+  # Cleanup backup on failure
+  rm -rf "/tmp/.copilot_backup_$$" 2>/dev/null || true
   return 1
 }
