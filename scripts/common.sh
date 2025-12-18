@@ -73,7 +73,7 @@ pre_commit_cleanup() {
             echo "$file" >> .gitignore
             echo "[INFO] Added $file to .gitignore"
           fi
-          ((large_file_count++))
+          ((large_file_count++)) || true
         fi
       fi
     done <<< "$staged_files"
@@ -81,13 +81,18 @@ pre_commit_cleanup() {
   
   # 2. Check for excluded patterns in staging area
   for pattern in "${EXCLUDED_PATTERNS[@]}"; do
-    # Find matching staged files
-    local matching_files
-    matching_files=$(git diff --cached --name-only 2>/dev/null | grep -E "^${pattern}$|/${pattern}$|^${pattern}/|/${pattern}/" 2>/dev/null || true)
+    # Find matching staged files - use exact filename matching
+    local matching_files=""
     
-    # Also check exact pattern match
-    if [[ -z "$matching_files" ]]; then
-      matching_files=$(git diff --cached --name-only 2>/dev/null | grep -F "$pattern" 2>/dev/null || true)
+    # For patterns with wildcards, use proper glob matching
+    if [[ "$pattern" == *"*"* ]]; then
+      # Convert glob to regex: *.log -> \.log$, core.* -> ^core\.
+      local regex_pattern
+      regex_pattern=$(echo "$pattern" | sed 's/\./\\./g' | sed 's/\*/.*/g')
+      matching_files=$(git diff --cached --name-only 2>/dev/null | grep -E "(^|/)${regex_pattern}$" 2>/dev/null || true)
+    else
+      # Exact match for non-wildcard patterns (e.g., .env should NOT match .env.example)
+      matching_files=$(git diff --cached --name-only 2>/dev/null | grep -E "(^|/)${pattern}$" 2>/dev/null || true)
     fi
     
     if [[ -n "$matching_files" ]]; then
@@ -95,7 +100,7 @@ pre_commit_cleanup() {
         if [[ -n "$file" ]]; then
           echo "[WARN] Excluding unwanted file: $file (matches pattern: $pattern)"
           git reset HEAD -- "$file" 2>/dev/null || true
-          ((excluded_count++))
+          ((excluded_count++)) || true
         fi
       done <<< "$matching_files"
     fi
