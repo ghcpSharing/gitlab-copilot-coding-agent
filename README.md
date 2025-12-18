@@ -432,8 +432,8 @@ Issue 指派给 Copilot → Webhook → 触发流水线 →
    - 确认 `GITHUB_TOKEN` 有效
    - 验证 Copilot 订阅状态
 
-2. **检查 Docker 镜像**
-   - 拉取最新镜像: `docker pull satomic/copilot-cli:latest`
+2. **检查 Runner 镜像**
+
 
 ## 📄 许可证
 
