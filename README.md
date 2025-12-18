@@ -35,11 +35,11 @@
 - [GitLab Copilot 编码代理 - 使用方法 11:24 – 通过评论让 Copilot 在合并请求中进行更新](https://www.youtube.com/watch?v=med7Bfff_m4&t=684s)
 
 **示例仓库**
-- 公开 GitLab 演示仓库 [app-repo-01](https://gitlab.com/agentic-devops/app-repo-01)
-- Issue: [一个 Webhook 接收应用](https://gitlab.com/agentic-devops/app-repo-01/-/issues/21)
-- MR: [一个 Webhook 接收应用 (#21)](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26)
-- 通过评论更新 MR: [@copilot-agent 把 readme 改成西班牙语](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930260370)
-- 代码审查: [将 Copilot 指派为 MR 审阅者](https://gitlab.com/agentic-devops/app-repo-01/-/merge_requests/26#note_2930279091)
+- 公开 GitLab 演示仓库 [一个示例应用仓库](https://gitlab.com/gh-copilot1/okr)
+- Issue: [一个 Webhook 接收应用](https://gitlab.com/gh-copilot1/okr/-/issues/6)
+- MR: [一个 Webhook 接收应用 (#27)](https://gitlab.com/gh-copilot1/okr/-/merge_requests/27)
+- 代码审查: [将 Copilot 指派为 MR 审阅者](https://gitlab.com/gh-copilot1/okr/-/merge_requests/22)
+- - 通过评论更新 MR: [@Copilot 接收 Review 意见代码](https://gitlab.com/gh-copilot1/okr/-/merge_requests/22#note_2958981856)
 
 ## 🏗️ 架构
 
