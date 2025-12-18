@@ -667,19 +667,3 @@ mr_review_orchestrated.sh
     └── Phase 3: Summary (现有)
 ```
 
----
-
-## 11. 下一步开发任务
-
-1. ✅ 创建 `models.py` - 数据模型
-2. ✅ 创建 `scanner.py` - 文件扫描
-3. ⬜ 创建 `scripts/copilot_agent.sh` - Bash 封装
-4. ⬜ 创建 `copilot.py` - Python 封装
-5. ⬜ 创建 `agents/base.py` - Agent 基类
-6. ⬜ 创建各专家 Agent (tech_stack, data_model, domain, security, api)
-7. ⬜ 创建 `agents/reviewer.py` - 质量校验
-8. ⬜ 创建 `agents/synthesizer.py` - 合并压缩
-9. ⬜ 创建 `orchestrator.py` - 流程编排
-10. ⬜ 创建 `cli.py` - CLI 入口
-11. ⬜ 修改 `mr_review_orchestrated.sh` - 集成 Phase 0
-12. ⬜ 测试端到端流程

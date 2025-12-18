@@ -97,7 +97,7 @@ git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANC
 git fetch origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" >/dev/null 2>&1 || true
 
 # 检出源分支 - using robust checkout function from common.sh
-if ! robust_checkout "${SOURCE_BRANCH}" "${REPO_DIR}"; then
+if ! robust_checkout "${SOURCE_BRANCH}" "."; then
   echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
   exit 1
 fi

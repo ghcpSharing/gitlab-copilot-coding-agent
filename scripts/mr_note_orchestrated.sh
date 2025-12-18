@@ -108,7 +108,7 @@ echo "[INFO] Checking out source branch ${SOURCE_BRANCH}..."
 git fetch origin --prune >/dev/null 2>&1 || true
 
 # Use robust checkout function from common.sh
-if ! robust_checkout "${SOURCE_BRANCH}" "${REPO_DIR}"; then
+if ! robust_checkout "${SOURCE_BRANCH}" "."; then
   echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
   exit 1
 fi
