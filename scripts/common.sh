@@ -182,73 +182,54 @@ robust_checkout() {
   cd "$repo_dir" || return 1
   
   echo "[INFO] Attempting to checkout branch: $branch"
-  echo "[DEBUG] Available remote branches:"
-  git branch -r 2>/dev/null | head -20 || true
-  echo "[DEBUG] Checking for refs matching branch:"
-  git show-ref 2>/dev/null | grep -F "$branch" || echo "No refs found matching $branch"
   
   # Fetch latest from origin first
-  echo "[INFO] Fetching latest from origin..."
-  git fetch origin 2>/dev/null || git fetch --all 2>/dev/null || true
+  echo "[INFO] Fetching from origin..."
+  git fetch origin --prune 2>&1 || true
   
-  # Method 1: Direct checkout (works if branch exists locally or as remote tracking)
-  echo "[INFO] Method 1: Direct checkout..."
-  if git checkout "$branch" 2>/dev/null; then
-    echo "[SUCCESS] Checked out branch $branch using direct checkout"
-    return 0
-  fi
+  echo "[DEBUG] Remote refs for this branch:"
+  git ls-remote origin "refs/heads/$branch" 2>&1 || true
   
-  # Method 2: Delete local branch first (if corrupted), then create from origin
-  echo "[INFO] Method 2: Delete local + create from origin..."
-  git branch -D "$branch" 2>/dev/null || true  # Delete local if exists
-  if git checkout -b "$branch" "origin/$branch" 2>/dev/null; then
-    echo "[SUCCESS] Checked out branch $branch by creating from origin/$branch"
-    return 0
-  fi
-  
-  # Method 3: Use --track option
-  echo "[INFO] Method 3: Track remote branch..."
-  if git checkout --track "origin/$branch" 2>/dev/null; then
-    echo "[SUCCESS] Checked out branch $branch using --track"
-    return 0
-  fi
-  
-  # Method 4: Explicit fetch of the branch then checkout
-  echo "[INFO] Method 4: Explicit fetch + checkout..."
-  if git fetch origin "$branch:$branch" 2>/dev/null && git checkout "$branch" 2>/dev/null; then
-    echo "[SUCCESS] Checked out branch $branch using explicit fetch"
-    return 0
-  fi
-  
-  # Method 5: Fetch to FETCH_HEAD and create branch from it
-  echo "[INFO] Method 5: FETCH_HEAD method..."
-  if git fetch origin "$branch" 2>/dev/null; then
+  # Method 1: Simple - just use the commit SHA directly
+  echo "[INFO] Method 1: Get SHA and checkout directly..."
+  local sha
+  sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | awk '{print $1}')
+  if [[ -n "$sha" ]]; then
+    echo "[DEBUG] Found SHA: $sha"
+    # Delete any existing local branch
     git branch -D "$branch" 2>/dev/null || true
-    if git checkout -b "$branch" FETCH_HEAD 2>/dev/null; then
-      echo "[SUCCESS] Checked out branch $branch from FETCH_HEAD"
+    # Checkout the SHA in detached HEAD
+    if git checkout "$sha" 2>&1; then
+      # Create local branch from current HEAD
+      if git checkout -b "$branch" 2>&1; then
+        echo "[SUCCESS] Checked out branch $branch (SHA: $sha)"
+        return 0
+      fi
+    fi
+  fi
+  
+  # Method 2: Fetch specific ref and checkout
+  echo "[INFO] Method 2: Fetch specific ref..."
+  git branch -D "$branch" 2>/dev/null || true
+  if git fetch origin "refs/heads/$branch:refs/heads/$branch" 2>&1; then
+    if git checkout "$branch" 2>&1; then
+      echo "[SUCCESS] Checked out branch $branch via specific ref fetch"
       return 0
     fi
   fi
   
-  # Method 6: Detached HEAD then create branch
-  echo "[INFO] Method 6: Detached HEAD + branch creation..."
-  if git checkout "origin/$branch" 2>/dev/null; then
-    if git checkout -b "$branch" 2>/dev/null; then
-      echo "[SUCCESS] Created and checked out branch $branch from detached HEAD"
-      return 0
-    fi
-  fi
-  
-  # Method 7: Use refs/remotes directly
-  echo "[INFO] Method 7: Using refs/remotes directly..."
-  if git checkout -b "$branch" "refs/remotes/origin/$branch" 2>/dev/null; then
-    echo "[SUCCESS] Checked out branch $branch using refs/remotes"
+  # Method 3: Try with quotes around the branch name (for branches with slashes)
+  echo "[INFO] Method 3: Checkout with origin prefix..."
+  git branch -D "$branch" 2>/dev/null || true
+  if git checkout -b "$branch" --track "origin/$branch" 2>&1; then
+    echo "[SUCCESS] Checked out branch $branch with --track"
     return 0
   fi
-  
+
   echo "[ERROR] All checkout methods failed for branch: $branch" >&2
-  echo "[DEBUG] Final state - all refs:" >&2
-  git show-ref 2>/dev/null | head -30 >&2 || true
+  echo "[DEBUG] Final git status:" >&2
+  git status 2>&1 >&2
+  echo "[DEBUG] All remote branches:" >&2
+  git branch -r 2>&1 >&2
   return 1
 }
-
