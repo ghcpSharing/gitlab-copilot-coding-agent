@@ -302,7 +302,8 @@ if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; th
   HAS_CHANGES=true
 fi
 
-UNTRACKED_FILES=$(git ls-files --others --exclude-standard | grep -v -E '(\.log$|\.txt$|\.json$|__pycache__|\.pyc$|\.copilot_tasks)' || true)
+# Use safe untracked files function to exclude large/unwanted files
+UNTRACKED_FILES=$(get_safe_untracked_files "." 2>/dev/null || git ls-files --others --exclude-standard | grep -v -E '(\.log$|\.txt$|\.json$|__pycache__|\.pyc$|\.copilot_tasks)' || true)
 
 if [ -n "$UNTRACKED_FILES" ]; then
   HAS_CHANGES=true
@@ -316,6 +317,9 @@ if [ "$HAS_CHANGES" = true ]; then
   if [ -n "$UNTRACKED_FILES" ]; then
     echo "$UNTRACKED_FILES" | xargs -r git add || true
   fi
+  
+  # Run pre-commit cleanup to exclude large/unwanted files
+  pre_commit_cleanup "."
   
   echo "[DEBUG] Staged changes:"
   git diff --cached --stat
