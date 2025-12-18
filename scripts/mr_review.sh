@@ -85,16 +85,28 @@ fi
 cd "${REPO_DIR}"
 
 echo "[INFO] Fetching branches..."
-git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to fetch branches" >&2
-  exit 1
-}
+# Fetch all branches first
+git fetch origin --prune >/dev/null 2>&1 || true
+
+# Specifically fetch the source and target branches
+git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" >/dev/null 2>&1 || true
+git fetch origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" >/dev/null 2>&1 || true
 
 echo "[INFO] Checking out source branch ${SOURCE_BRANCH}..."
-git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
-  exit 1
-}
+# Try multiple checkout methods
+if ! git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1; then
+  echo "[INFO] Direct checkout failed, trying origin/${SOURCE_BRANCH}..."
+  if ! git checkout -b "${SOURCE_BRANCH}" "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+    if ! git checkout --track "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+      echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
+      echo "[DEBUG] Available branches:"
+      git branch -a
+      exit 1
+    fi
+  fi
+fi
+
+echo "[INFO] On branch: $(git branch --show-current)"
 
 echo "[INFO] Getting diff between ${TARGET_BRANCH} and ${SOURCE_BRANCH}..."
 

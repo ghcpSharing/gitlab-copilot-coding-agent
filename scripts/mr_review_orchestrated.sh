@@ -83,16 +83,39 @@ fi
 cd "${REPO_DIR}"
 
 echo "[INFO] Fetching branches..."
-git fetch origin "${SOURCE_BRANCH}" "${TARGET_BRANCH}" >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to fetch branches" >&2
-  exit 1
+# Fetch all remote branches to ensure we have the latest refs
+git fetch origin --prune >/dev/null 2>&1 || {
+  echo "[WARN] Full fetch failed, trying specific branches..."
 }
 
-# 检出源分支
-git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
-  exit 1
+# Specifically fetch the source and target branches
+git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" >/dev/null 2>&1 || {
+  echo "[WARN] Failed to fetch source branch ${SOURCE_BRANCH}, trying alternative method..."
+  git fetch origin >/dev/null 2>&1 || true
 }
+
+git fetch origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" >/dev/null 2>&1 || true
+
+echo "[DEBUG] Available branches:"
+git branch -a 2>/dev/null | head -20 || true
+
+# 检出源分支 - try multiple methods
+if ! git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1; then
+  echo "[INFO] Direct checkout failed, trying origin/${SOURCE_BRANCH}..."
+  if ! git checkout -b "${SOURCE_BRANCH}" "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+    echo "[INFO] Trying to track remote branch..."
+    if ! git checkout --track "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+      echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
+      echo "[DEBUG] Git status:"
+      git status
+      echo "[DEBUG] Remote branches:"
+      git branch -r
+      exit 1
+    fi
+  fi
+fi
+
+echo "[INFO] Successfully checked out ${SOURCE_BRANCH}"
 
 # ==========================================
 # 加载项目理解上下文

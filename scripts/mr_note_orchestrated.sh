@@ -104,14 +104,26 @@ GIT_TERMINAL_PROMPT=0 git clone "${AUTHED_URL}" "${REPO_DIR}" >/dev/null 2>&1 ||
 cd "${REPO_DIR}"
 
 echo "[INFO] Checking out source branch ${SOURCE_BRANCH}..."
-git fetch origin "${SOURCE_BRANCH}" >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to fetch source branch ${SOURCE_BRANCH}" >&2
-  exit 1
+# Fetch all branches first
+git fetch origin --prune >/dev/null 2>&1 || true
+
+# Specifically fetch the source branch
+git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" >/dev/null 2>&1 || {
+  echo "[WARN] Specific fetch failed, source branch may already exist..."
 }
-git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1 || {
-  echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
-  exit 1
-}
+
+# Try multiple checkout methods
+if ! git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1; then
+  echo "[INFO] Direct checkout failed, trying origin/${SOURCE_BRANCH}..."
+  if ! git checkout -b "${SOURCE_BRANCH}" "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+    if ! git checkout --track "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+      echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
+      echo "[DEBUG] Available branches:"
+      git branch -a
+      exit 1
+    fi
+  fi
+fi
 
 echo "[INFO] Repository cloned, on branch: $(git branch --show-current)"
 
