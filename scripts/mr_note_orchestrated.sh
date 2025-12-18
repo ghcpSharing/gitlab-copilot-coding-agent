@@ -275,7 +275,6 @@ python3 scripts/issue_planner.py \
   --issue-id "mr-${TARGET_MR_IID}" \
   --issue-title "${MR_NOTE_INSTRUCTION:0:100}" \
   --issue-description "${PLAN_DESCRIPTION}" \
-  --workspace "${REPO_DIR}" \
   --output mr_task_plan.json 2>&1 | tee planner.log || {
   echo "[WARN] Planner failed, using simple single-task plan"
   # 创建简单的单任务计划
