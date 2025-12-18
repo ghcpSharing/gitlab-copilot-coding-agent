@@ -206,9 +206,41 @@ curl --silent --show-error --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
   echo "[INFO] Branch may already exist"
 }
 
-# 切换到新分支
-git fetch origin "${NEW_BRANCH_NAME}" >/dev/null 2>&1 || true
-git checkout -B "${NEW_BRANCH_NAME}" "origin/${NEW_BRANCH_NAME}" 2>/dev/null || git checkout -b "${NEW_BRANCH_NAME}" "${TARGET_BRANCH}"
+# 切换到新分支 - use robust_checkout from common.sh
+echo "[INFO] Checking out ${NEW_BRANCH_NAME}..."
+git fetch origin --prune 2>&1 || true
+
+# Try to checkout the copilot branch
+CHECKOUT_SUCCESS=false
+
+# Method 1: If branch exists on remote, checkout from there
+if git ls-remote --heads origin "${NEW_BRANCH_NAME}" | grep -q "${NEW_BRANCH_NAME}"; then
+  echo "[DEBUG] Branch ${NEW_BRANCH_NAME} exists on remote"
+  git branch -D "${NEW_BRANCH_NAME}" 2>/dev/null || true
+  if git checkout -b "${NEW_BRANCH_NAME}" "origin/${NEW_BRANCH_NAME}" 2>&1; then
+    CHECKOUT_SUCCESS=true
+  fi
+fi
+
+# Method 2: Create new branch from TARGET_BRANCH
+if [ "$CHECKOUT_SUCCESS" = "false" ]; then
+  echo "[DEBUG] Creating new branch from ${TARGET_BRANCH}"
+  git branch -D "${NEW_BRANCH_NAME}" 2>/dev/null || true
+  if git checkout -b "${NEW_BRANCH_NAME}" "origin/${TARGET_BRANCH}" 2>&1; then
+    CHECKOUT_SUCCESS=true
+  fi
+fi
+
+# Verify we're on the right branch
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || git rev-parse --abbrev-ref HEAD)
+echo "[DEBUG] Current branch after checkout: ${CURRENT_BRANCH}"
+
+if [ "${CURRENT_BRANCH}" != "${NEW_BRANCH_NAME}" ]; then
+  echo "[ERROR] Failed to checkout ${NEW_BRANCH_NAME}, still on ${CURRENT_BRANCH}" >&2
+  exit 1
+fi
+
+echo "[INFO] Successfully on branch ${NEW_BRANCH_NAME}"
 
 # 创建 MR
 MR_TITLE="${ISSUE_TITLE}"
