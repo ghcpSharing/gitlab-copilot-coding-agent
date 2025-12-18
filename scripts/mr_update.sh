@@ -79,28 +79,13 @@ fi
 cd "${REPO_DIR}"
 
 echo "[INFO] Checking out source branch ${SOURCE_BRANCH}..."
-# Fetch all branches first
-git fetch origin --prune >/dev/null 2>&1 || true
-
-# Specifically fetch the source branch
-git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" >/dev/null 2>&1 || {
-  echo "[WARN] Specific fetch failed, source branch may already exist..."
-}
-
-# Try multiple checkout methods
-if ! git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1; then
-  echo "[INFO] Direct checkout failed, trying origin/${SOURCE_BRANCH}..."
-  if ! git checkout -b "${SOURCE_BRANCH}" "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
-    if ! git checkout --track "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
-      echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
-      echo "[DEBUG] Available branches:"
-      git branch -a
-      exit 1
-    fi
-  fi
+# Use robust checkout function from common.sh
+if ! robust_checkout "${SOURCE_BRANCH}" "${REPO_DIR}"; then
+  echo "[ERROR] Failed to checkout source branch ${SOURCE_BRANCH}" >&2
+  exit 1
 fi
 
-echo "[INFO] On branch: $(git branch --show-current)"
+echo "[INFO] On branch: $(git branch --show-current 2>/dev/null || echo 'detached HEAD')"
 
 echo "[INFO] Building implementation prompt for Copilot..."
 

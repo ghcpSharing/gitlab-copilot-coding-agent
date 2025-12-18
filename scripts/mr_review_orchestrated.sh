@@ -96,26 +96,13 @@ git fetch origin "refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANC
 
 git fetch origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" >/dev/null 2>&1 || true
 
-echo "[DEBUG] Available branches:"
-git branch -a 2>/dev/null | head -20 || true
-
-# 检出源分支 - try multiple methods
-if ! git checkout "${SOURCE_BRANCH}" >/dev/null 2>&1; then
-  echo "[INFO] Direct checkout failed, trying origin/${SOURCE_BRANCH}..."
-  if ! git checkout -b "${SOURCE_BRANCH}" "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
-    echo "[INFO] Trying to track remote branch..."
-    if ! git checkout --track "origin/${SOURCE_BRANCH}" >/dev/null 2>&1; then
-      echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
-      echo "[DEBUG] Git status:"
-      git status
-      echo "[DEBUG] Remote branches:"
-      git branch -r
-      exit 1
-    fi
-  fi
+# 检出源分支 - using robust checkout function from common.sh
+if ! robust_checkout "${SOURCE_BRANCH}" "${REPO_DIR}"; then
+  echo "[ERROR] Failed to checkout ${SOURCE_BRANCH}" >&2
+  exit 1
 fi
 
-echo "[INFO] Successfully checked out ${SOURCE_BRANCH}"
+echo "[DEBUG] Current branch: $(git branch --show-current 2>/dev/null || echo 'detached HEAD')"
 
 # ==========================================
 # 加载项目理解上下文
